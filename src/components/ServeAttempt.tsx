@@ -313,10 +313,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         subject: `Process Serve Attempt #${serveData.attemptNumber} - Case ${data.caseNumber}`,
         body: emailBody,
         imageData: capturedImage,
-        coordinates: {
-          lat: location.latitude,
-          lng: location.longitude
-        },
+        coordinates: location,
       });
 
       if (emailResult.success) {

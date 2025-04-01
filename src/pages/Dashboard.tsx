@@ -81,7 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
   };
 
   // Handle save edited serve
-  const handleServeUpdate = async (updatedServe: ServeAttemptData): Promise<boolean> => {
+  const handleServeUpdate = async (updatedServe: ServeAttemptData) => {
     try {
       const success = await updateServe(updatedServe);
       
@@ -92,13 +92,9 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
         
         setEditDialogOpen(false);
         setEditingServe(null);
-        return true;
       }
-      
-      return false;
     } catch (error) {
       console.error("Error updating serve:", error);
-      return false;
     }
   };
 

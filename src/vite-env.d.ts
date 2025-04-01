@@ -17,19 +17,8 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Define GeolocationCoordinatesCompatible type for compatibility
+// Define GeolocationCoordinates type for compatibility
 interface GeolocationCoordinatesCompatible {
-  latitude: number;
-  longitude: number;
-  accuracy?: number;
-  altitude?: number | null;
-  altitudeAccuracy?: number | null;
-  heading?: number | null;
-  speed?: number | null;
-}
-
-// Additional type for mapped coordinates
-interface MappedCoordinates {
   lat: number;
   lng: number;
   accuracy?: number;
@@ -37,22 +26,4 @@ interface MappedCoordinates {
   altitudeAccuracy?: number | null;
   heading?: number | null;
   speed?: number | null;
-}
-
-// Define UploadedDocument interface globally
-interface UploadedDocument {
-  id: string;
-  clientId: string;
-  fileName: string;
-  filePath: string;
-  fileType: string;
-  fileSize: number;
-  caseNumber?: string;
-  description?: string;
-  caseName?: string;
-}
-
-// Make sure GeolocationCoordinates follows the compatible interface
-declare global {
-  interface GeolocationCoordinates extends GeolocationCoordinatesCompatible {}
 }

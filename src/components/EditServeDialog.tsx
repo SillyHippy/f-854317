@@ -26,9 +26,8 @@ import { appwrite } from "@/lib/appwrite";
 import { isGeolocationCoordinates } from "@/utils/gps";
 import { ACTIVE_BACKEND, BACKEND_PROVIDER } from "@/config/backendConfig";
 import { supabase } from "@/lib/supabase";
-import { toast } from "@/components/ui/use-toast";
 
-export interface EditServeDialogProps {
+interface EditServeDialogProps {
   serve: ServeAttemptData;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -146,10 +145,7 @@ export default function EditServeDialog({ serve, open, onOpenChange, onSave }: E
             }
           } catch (error) {
             console.error("Error sending status update email:", error);
-            toast({
-              title: "Email Error",
-              description: "Failed to send status update email"
-            });
+            console.log("Email Error: Failed to send status update email");
           }
         }
         
@@ -157,11 +153,7 @@ export default function EditServeDialog({ serve, open, onOpenChange, onSave }: E
       }
     } catch (error) {
       console.error("Error saving serve attempt:", error);
-      toast({
-        title: "Save Error",
-        description: "An error occurred while saving",
-        variant: "destructive"
-      });
+      console.log("Save Error: An error occurred while saving");
     } finally {
       setIsSaving(false);
     }

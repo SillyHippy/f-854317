@@ -151,8 +151,10 @@ const AnimatedRoutes = () => {
       });
       
       if (newClient) {
-        toast.success("Client created", {
-          description: "New client has been added successfully"
+        toast({
+          title: "Client created",
+          description: "New client has been added successfully",
+          variant: "success",
         });
         
         const clientData = {
@@ -175,8 +177,10 @@ const AnimatedRoutes = () => {
       }
     } catch (error) {
       console.error("Error creating client in Appwrite:", error);
-      toast.error("Error creating client", {
-        description: error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Error creating client",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       throw error;
     }
@@ -196,8 +200,10 @@ const AnimatedRoutes = () => {
       });
       
       if (result) {
-        toast.success("Client updated", {
-          description: "Client has been successfully updated"
+        toast({
+          title: "Client updated",
+          description: "Client has been successfully updated",
+          variant: "success",
         });
         
         setClients(prev => prev.map(client => 
@@ -212,8 +218,10 @@ const AnimatedRoutes = () => {
       }
     } catch (error) {
       console.error("Error updating client in Appwrite:", error);
-      toast.error("Error updating client", {
-        description: error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Error updating client",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       throw error;
     }
@@ -233,8 +241,10 @@ const AnimatedRoutes = () => {
       await appwrite.deleteClient(clientId);
       setClients(prev => prev.filter(client => client.id !== clientId));
       setServes(prev => prev.filter(serve => serve.clientId !== clientId));
-      toast.success("Client deleted", {
-        description: "Client and associated data have been removed"
+      toast({
+        title: "Client deleted",
+        description: "Client and associated data have been removed",
+        variant: "success",
       });
       setTimeout(() => {
         loadAppwriteData();
@@ -242,8 +252,10 @@ const AnimatedRoutes = () => {
       return true;
     } catch (error) {
       console.error("Error deleting client:", error);
-      toast.error("Error deleting client", {
-        description: error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Error deleting client",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       return false;
     }
@@ -268,14 +280,18 @@ const AnimatedRoutes = () => {
         caseNumber: newServe.caseNumber,
       };
       setServes(prev => [...prev, formattedServe]);
-      toast.success("Serve recorded", {
-        description: "Service attempt has been saved successfully"
+      toast({
+        title: "Serve recorded",
+        description: "Service attempt has been saved successfully",
+        variant: "success",
       });
       return true;
     } catch (error) {
       console.error("Error creating serve attempt:", error);
-      toast.error("Error saving serve attempt", {
-        description: error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Error saving serve attempt",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       return false;
     }
@@ -291,14 +307,18 @@ const AnimatedRoutes = () => {
       setServes(prev => prev.map(serve => 
         serve.id === serveData.id ? serveData : serve
       ));
-      toast.success("Serve updated", {
-        description: "Service attempt has been updated successfully"
+      toast({
+        title: "Serve updated",
+        description: "Service attempt has been updated successfully",
+        variant: "success",
       });
       return true;
     } catch (error) {
       console.error("Error updating serve attempt:", error);
-      toast.error("Error updating serve attempt", {
-        description: error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Error updating serve attempt",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       return false;
     }
@@ -308,14 +328,18 @@ const AnimatedRoutes = () => {
     try {
       await appwrite.deleteServeAttempt(serveId);
       setServes(prev => prev.filter(serve => serve.id !== serveId));
-      toast.success("Serve deleted", {
-        description: "Service attempt has been removed"
+      toast({
+        title: "Serve deleted",
+        description: "Service attempt has been removed",
+        variant: "success",
       });
       return true;
     } catch (error) {
       console.error("Error deleting serve attempt:", error);
-      toast.error("Error deleting serve attempt", {
-        description: error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Error deleting serve attempt",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       return false;
     }

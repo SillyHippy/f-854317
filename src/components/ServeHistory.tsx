@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ServeAttemptData } from "./ServeAttempt";
 import { ClientData } from "./ClientForm";
+// Replace Supabase import with Appwrite
 import { appwrite } from "@/lib/appwrite";
 import { 
   MapPin, 
@@ -28,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface ServeHistoryProps {
   serves: ServeAttemptData[];
@@ -40,6 +41,7 @@ interface ServeHistoryProps {
 export default function ServeHistory({ serves, clients, onEdit, onDelete }: ServeHistoryProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
   
   const getClientName = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
@@ -60,13 +62,16 @@ export default function ServeHistory({ serves, clients, onEdit, onDelete }: Serv
     
     setIsDeleting(true);
     try {
+      // Use Appwrite instead of supabase
       await appwrite.deleteServeAttempt(deleteId);
       
       toast({
         title: "Serve attempt deleted",
-        description: "The serve attempt has been permanently removed"
+        description: "The serve attempt has been permanently removed",
+        variant: "default"
       });
       
+      // Call onDelete if provided
       if (onDelete) {
         onDelete(deleteId);
       }

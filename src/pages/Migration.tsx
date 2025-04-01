@@ -3,12 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Database, ArrowLeftRight, Loader2, Check, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { migrateSupabaseToAppwrite } from "@/utils/migrationHelper";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const MigrationPage: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{
     success: boolean;
@@ -24,12 +25,16 @@ const MigrationPage: React.FC = () => {
       setMigrationResult(result);
       
       if (result.success) {
-        toast.success("Migration Complete", {
-          description: `Successfully migrated ${result.clientsCount} clients and ${result.servesCount} serve attempts`
+        toast({
+          title: "Migration Complete",
+          description: `Successfully migrated ${result.clientsCount} clients and ${result.servesCount} serve attempts`,
+          variant: "success"
         });
       } else {
-        toast.error("Migration Failed", {
-          description: result.error || "An unknown error occurred"
+        toast({
+          title: "Migration Failed",
+          description: result.error || "An unknown error occurred",
+          variant: "destructive"
         });
       }
     } catch (error) {
@@ -39,8 +44,10 @@ const MigrationPage: React.FC = () => {
         error: error instanceof Error ? error.message : "Unknown error"
       });
       
-      toast.error("Migration Error", {
-        description: error instanceof Error ? error.message : "An unknown error occurred"
+      toast({
+        title: "Migration Error",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
       });
     } finally {
       setIsMigrating(false);

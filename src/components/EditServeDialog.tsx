@@ -26,7 +26,7 @@ import { appwrite } from "@/lib/appwrite";
 import { isGeolocationCoordinates } from "@/utils/gps";
 import { ACTIVE_BACKEND, BACKEND_PROVIDER } from "@/config/backendConfig";
 import { supabase } from "@/lib/supabase";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/use-toast";
 
 export interface EditServeDialogProps {
   serve: ServeAttemptData;

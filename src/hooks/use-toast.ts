@@ -5,7 +5,7 @@ import { toast as sonnerToast } from "sonner";
 export interface CustomToastProps {
   title?: string;
   description?: string;
-  variant?: "default" | "destructive";
+  variant?: "default" | "destructive" | "success";
 }
 
 // Create the base toast function
@@ -14,6 +14,8 @@ const toastFn = (props?: CustomToastProps): string | number => {
     const { title, description, variant } = props;
     if (variant === "destructive") {
       return sonnerToast.error(title, { description });
+    } else if (variant === "success") {
+      return sonnerToast.success(title, { description });
     }
     return sonnerToast(title, { description });
   }
@@ -37,6 +39,8 @@ export const useToast = () => {
         const { title, description, variant } = props;
         if (variant === "destructive") {
           return sonnerToast.error(title, { description });
+        } else if (variant === "success") {
+          return sonnerToast.success(title, { description });
         }
         return sonnerToast(title, { description });
       }

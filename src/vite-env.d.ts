@@ -17,8 +17,19 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Define GeolocationCoordinates type for compatibility
+// Define GeolocationCoordinatesCompatible type for compatibility
 interface GeolocationCoordinatesCompatible {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  altitude?: number | null;
+  altitudeAccuracy?: number | null;
+  heading?: number | null;
+  speed?: number | null;
+}
+
+// Additional type for mapped coordinates
+interface MappedCoordinates {
   lat: number;
   lng: number;
   accuracy?: number;
@@ -26,4 +37,9 @@ interface GeolocationCoordinatesCompatible {
   altitudeAccuracy?: number | null;
   heading?: number | null;
   speed?: number | null;
+}
+
+// Make sure GeolocationCoordinates follows the compatible interface
+declare global {
+  interface GeolocationCoordinates extends GeolocationCoordinatesCompatible {}
 }

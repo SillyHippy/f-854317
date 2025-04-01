@@ -8,11 +8,10 @@ import { format } from "date-fns";
 import { Calendar as CalendarIcon, Download, FileSpreadsheet, ArrowLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportServeData } from "@/utils/appwriteStorage";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 const DataExport: React.FC = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [startDate, setStartDate] = useState<Date | undefined>(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)); // 30 days ago
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [isExporting, setIsExporting] = useState(false);
@@ -47,20 +46,16 @@ const DataExport: React.FC = () => {
         link.click();
         document.body.removeChild(link);
         
-        toast({
-          title: "Export successful",
-          description: `Data exported to ${fileName}`,
-          variant: "success"
+        toast.success("Export successful", {
+          description: `Data exported to ${fileName}`
         });
       } else {
         throw new Error(result.error || "Failed to export data");
       }
     } catch (error) {
       console.error("Error exporting data:", error);
-      toast({
-        title: "Export failed",
-        description: error instanceof Error ? error.message : "An error occurred during export",
-        variant: "destructive"
+      toast.error("Export failed", {
+        description: error instanceof Error ? error.message : "An error occurred during export"
       });
     } finally {
       setIsExporting(false);

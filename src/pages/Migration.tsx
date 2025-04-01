@@ -3,13 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Database, ArrowLeftRight, Loader2, Check, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { migrateSupabaseToAppwrite } from "@/utils/migrationHelper";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const MigrationPage: React.FC = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [isMigrating, setIsMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{
     success: boolean;
@@ -25,16 +24,12 @@ const MigrationPage: React.FC = () => {
       setMigrationResult(result);
       
       if (result.success) {
-        toast({
-          title: "Migration Complete",
-          description: `Successfully migrated ${result.clientsCount} clients and ${result.servesCount} serve attempts`,
-          variant: "success"
+        toast.success("Migration Complete", {
+          description: `Successfully migrated ${result.clientsCount} clients and ${result.servesCount} serve attempts`
         });
       } else {
-        toast({
-          title: "Migration Failed",
-          description: result.error || "An unknown error occurred",
-          variant: "destructive"
+        toast.error("Migration Failed", {
+          description: result.error || "An unknown error occurred"
         });
       }
     } catch (error) {
@@ -44,10 +39,8 @@ const MigrationPage: React.FC = () => {
         error: error instanceof Error ? error.message : "Unknown error"
       });
       
-      toast({
-        title: "Migration Error",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
-        variant: "destructive"
+      toast.error("Migration Error", {
+        description: error instanceof Error ? error.message : "An unknown error occurred"
       });
     } finally {
       setIsMigrating(false);

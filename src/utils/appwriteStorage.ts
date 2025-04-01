@@ -3,7 +3,7 @@ import { appwrite } from "@/lib/appwrite";
 import { v4 as uuidv4 } from "uuid";
 
 // Make sure to export the type properly with 'export type'
-export type UploadedDocument = {
+export interface UploadedDocument {
   id: string;
   clientId: string;
   fileName: string;
@@ -13,7 +13,7 @@ export type UploadedDocument = {
   caseNumber?: string;
   description?: string;
   caseName?: string;
-};
+}
 
 export async function uploadClientDocument(
   clientId: string,
@@ -25,7 +25,7 @@ export async function uploadClientDocument(
     const result = await appwrite.uploadClientDocument(clientId, file, caseNumber, description);
     
     return {
-      id: result.id,
+      id: result.id || result.$id,
       clientId: result.clientId,
       fileName: result.fileName,
       filePath: result.filePath,
@@ -121,7 +121,7 @@ export async function exportServeData(startDate: Date, endDate: Date): Promise<{
     
     // Filter by date range
     const filteredServes = serveAttempts.filter(serve => {
-      const serveDate = new Date(serve.date);
+      const serveDate = new Date(serve.date || serve.created_at);
       return serveDate >= startDate && serveDate <= endDate;
     });
     
@@ -130,24 +130,27 @@ export async function exportServeData(startDate: Date, endDate: Date): Promise<{
     let csvContent = headers.join(",") + "\n";
     
     for (const serve of filteredServes) {
-      // Get client name
-      const client = await appwrite.databases.getDocument(
-        appwrite.DATABASE_ID,
-        appwrite.CLIENTS_COLLECTION_ID,
-        serve.clientId
-      );
-      
-      const row = [
-        `"${serve.date}"`,
-        `"${serve.time}"`,
-        `"${client.name}"`,
-        `"${serve.address || ''}"`,
-        `"${serve.status}"`,
-        `"${serve.notes?.replace(/"/g, '""') || ''}"`,
-        `"${serve.caseNumber || ''}"`
-      ];
-      
-      csvContent += row.join(",") + "\n";
+      try {
+        // Get client name
+        const clients = await appwrite.getClients();
+        const client = clients.find(c => c.$id === serve.clientId);
+        
+        if (!client) continue;
+        
+        const row = [
+          `"${serve.date || new Date(serve.created_at).toLocaleDateString()}"`,
+          `"${serve.time || new Date(serve.created_at).toLocaleTimeString()}"`,
+          `"${client.name || 'Unknown'}"`,
+          `"${serve.address || ''}"`,
+          `"${serve.status || 'Unknown'}"`,
+          `"${(serve.notes || '').replace(/"/g, '""')}"`,
+          `"${serve.caseNumber || ''}"`
+        ];
+        
+        csvContent += row.join(",") + "\n";
+      } catch (err) {
+        console.error("Error processing serve attempt:", err);
+      }
     }
     
     return {

@@ -315,8 +315,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         imageData: capturedImage,
         coordinates: {
           lat: location.latitude,
-          lng: location.longitude,
-          accuracy: location.accuracy
+          lng: location.longitude
         },
       });
 

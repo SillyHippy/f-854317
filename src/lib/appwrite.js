@@ -25,12 +25,19 @@ const STORAGE_BUCKET_ID = APPWRITE_CONFIG.storageBucket;
 
 // Helper functions for CRUD operations
 export const appwrite = {
+  // Include these properties for easy access in other parts of the app
   client,
   account,
   databases,
   storage,
   teams,
   functions,
+  DATABASE_ID,
+  CLIENTS_COLLECTION_ID,
+  SERVE_ATTEMPTS_COLLECTION_ID,
+  CASES_COLLECTION_ID,
+  DOCUMENTS_COLLECTION_ID,
+  STORAGE_BUCKET_ID,
   
   // Utility to check if Appwrite is properly configured
   isAppwriteConfigured() {
@@ -47,14 +54,17 @@ export const appwrite = {
       return response.documents;
     } catch (error) {
       console.error('Error fetching clients:', error);
-      return [];
+      throw error;
     }
   },
   
   async createClient(client) {
     try {
+      // Generate a unique ID if one is not provided
       const clientId = client.id || ID.unique();
       const now = new Date().toISOString();
+      
+      // Create the document with proper field mappings
       const response = await databases.createDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
@@ -65,10 +75,12 @@ export const appwrite = {
           additional_emails: client.additionalEmails || [],
           phone: client.phone,
           address: client.address,
-          notes: client.notes,
+          notes: client.notes || "",
           created_at: now
         }
       );
+      
+      console.log("Client created successfully:", response);
       return response;
     } catch (error) {
       console.error('Error creating client:', error);
@@ -78,6 +90,8 @@ export const appwrite = {
   
   async updateClient(clientId, clientData) {
     try {
+      console.log("Updating client with ID:", clientId, "and data:", clientData);
+      
       const response = await databases.updateDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
@@ -88,10 +102,12 @@ export const appwrite = {
           additional_emails: clientData.additionalEmails || [],
           phone: clientData.phone,
           address: clientData.address,
-          notes: clientData.notes,
+          notes: clientData.notes || "",
           updated_at: new Date().toISOString()
         }
       );
+      
+      console.log("Client updated successfully:", response);
       return response;
     } catch (error) {
       console.error('Error updating client:', error);
@@ -308,6 +324,8 @@ export const appwrite = {
         file
       );
       
+      console.log("File uploaded successfully:", response);
+      
       return {
         id: fileId,
         path: path || fileId,
@@ -377,19 +395,23 @@ export const appwrite = {
       return response.documents;
     } catch (error) {
       console.error(`Error fetching documents for client ${clientId}:`, error);
-      return [];
+      throw error;
     }
   },
   
   async uploadClientDocument(clientId, file, caseNumber, description) {
     try {
+      console.log("Uploading document for client:", clientId, "file:", file.name);
+      
       // First upload the file to storage
       const fileId = ID.unique();
-      await storage.createFile(
+      const fileUploadResponse = await storage.createFile(
         STORAGE_BUCKET_ID,
         fileId,
         file
       );
+      
+      console.log("File uploaded to storage:", fileUploadResponse);
       
       // Then create a document record
       const docId = ID.unique();
@@ -411,10 +433,19 @@ export const appwrite = {
         }
       );
       
+      console.log("Document record created:", document);
+      
       return {
         id: docId,
         fileId: fileId,
-        ...document
+        clientId: clientId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        filePath: fileId,
+        caseNumber: caseNumber || '',
+        description: description || '',
+        uploadedAt: now
       };
     } catch (error) {
       console.error('Error uploading client document:', error);
@@ -461,18 +492,26 @@ export const appwrite = {
   
   // Real-time subscriptions
   setupRealtimeSubscription(callback) {
-    const unsubscribe = client.subscribe([
-      `databases.${DATABASE_ID}.collections.${CLIENTS_COLLECTION_ID}.documents`,
-      `databases.${DATABASE_ID}.collections.${SERVE_ATTEMPTS_COLLECTION_ID}.documents`,
-      `databases.${DATABASE_ID}.collections.${CASES_COLLECTION_ID}.documents`,
-      `databases.${DATABASE_ID}.collections.${DOCUMENTS_COLLECTION_ID}.documents`,
-    ], response => {
-      callback(response);
-    });
-    
-    return () => {
-      unsubscribe();
-    };
+    try {
+      console.log("Setting up real-time subscription for collections");
+      
+      const unsubscribe = client.subscribe([
+        `databases.${DATABASE_ID}.collections.${CLIENTS_COLLECTION_ID}.documents`,
+        `databases.${DATABASE_ID}.collections.${SERVE_ATTEMPTS_COLLECTION_ID}.documents`,
+        `databases.${DATABASE_ID}.collections.${CASES_COLLECTION_ID}.documents`,
+        `databases.${DATABASE_ID}.collections.${DOCUMENTS_COLLECTION_ID}.documents`,
+      ], response => {
+        console.log("Received real-time update:", response);
+        callback(response);
+      });
+      
+      return () => {
+        unsubscribe();
+      };
+    } catch (error) {
+      console.error("Error setting up real-time subscription:", error);
+      return () => {}; // Return empty function if subscription fails
+    }
   },
   
   // Email functions

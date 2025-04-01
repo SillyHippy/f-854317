@@ -1,7 +1,9 @@
+
 import { appwrite } from "@/lib/appwrite";
 import { v4 as uuidv4 } from "uuid";
 
-export interface UploadedDocument {
+// Make sure to export the type properly with 'export type'
+export type UploadedDocument = {
   id: string;
   clientId: string;
   fileName: string;
@@ -11,7 +13,7 @@ export interface UploadedDocument {
   caseNumber?: string;
   description?: string;
   caseName?: string;
-}
+};
 
 export async function uploadClientDocument(
   clientId: string,

@@ -1,7 +1,6 @@
-
 import { ACTIVE_BACKEND, BACKEND_PROVIDER } from '@/config/backendConfig';
 import { appwrite } from '@/lib/appwrite';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 // Helper function to check which backend is currently active
 export const isUsingAppwrite = () => {
@@ -23,10 +22,8 @@ export const checkBackendConnection = async () => {
     
     // Show toast only once - not on every failed check
     if (!window.localStorage.getItem('connectionErrorShown')) {
-      toast({
-        title: "Appwrite connection failed",
-        description: "Using local storage as fallback. Data will sync when connection is restored.",
-        variant: "destructive"
+      toast.error("Appwrite connection failed", {
+        description: "Using local storage as fallback. Data will sync when connection is restored."
       });
       window.localStorage.setItem('connectionErrorShown', 'true');
     }

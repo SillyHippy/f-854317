@@ -32,14 +32,6 @@ export const appwrite = {
   teams,
   functions,
   
-  // For access to collection IDs directly
-  DATABASE_ID,
-  CLIENTS_COLLECTION_ID,
-  SERVE_ATTEMPTS_COLLECTION_ID,
-  CASES_COLLECTION_ID,
-  DOCUMENTS_COLLECTION_ID,
-  STORAGE_BUCKET_ID,
-  
   // Utility to check if Appwrite is properly configured
   isAppwriteConfigured() {
     return !!APPWRITE_CONFIG.projectId && !!APPWRITE_CONFIG.endpoint;
@@ -63,7 +55,6 @@ export const appwrite = {
     try {
       const clientId = client.id || ID.unique();
       const now = new Date().toISOString();
-      
       const response = await databases.createDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
@@ -74,11 +65,10 @@ export const appwrite = {
           additional_emails: client.additionalEmails || [],
           phone: client.phone,
           address: client.address,
-          notes: client.notes || "",
+          notes: client.notes,
           created_at: now
         }
       );
-      
       return response;
     } catch (error) {
       console.error('Error creating client:', error);
@@ -98,7 +88,7 @@ export const appwrite = {
           additional_emails: clientData.additionalEmails || [],
           phone: clientData.phone,
           address: clientData.address,
-          notes: clientData.notes || "",
+          notes: clientData.notes,
           updated_at: new Date().toISOString()
         }
       );

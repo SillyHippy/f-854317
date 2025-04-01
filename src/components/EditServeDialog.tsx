@@ -1,288 +1,226 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage 
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
-import { useForm } from "react-hook-form";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ServeAttemptData } from "./ServeAttempt";
-import { ClientData } from "./ClientForm";
+import { sendEmail, createUpdateNotificationEmail } from "@/utils/email";
+import { appwrite } from "@/lib/appwrite";
+import { isGeolocationCoordinates } from "@/utils/gps";
+import { ACTIVE_BACKEND, BACKEND_PROVIDER } from "@/config/backendConfig";
+import { supabase } from "@/lib/supabase";
 
 interface EditServeDialogProps {
+  serve: ServeAttemptData;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  serveData: ServeAttemptData;
-  onUpdate: (updatedData: ServeAttemptData) => void;
-  onDelete: (id: string) => void;
-  clients: ClientData[];
+  onSave: (updatedServe: ServeAttemptData) => Promise<boolean>;
 }
 
 const statusOptions = [
-  { value: 'attempted', label: 'Attempted' },
-  { value: 'served', label: 'Served' },
-  { value: 'not-served', label: 'Not Served' },
+  "completed",
+  "failed"
 ];
 
-export default function EditServeDialog({ 
-  open, 
-  onOpenChange, 
-  serveData, 
-  onUpdate, 
-  onDelete,
-  clients 
-}: EditServeDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const statusDisplayMap: Record<string, string> = {
+  "completed": "Served",
+  "failed": "Failed Attempt",
+};
 
-  const form = useForm({
-    defaultValues: {
-      id: serveData.id,
-      clientId: serveData.clientId,
-      date: serveData.timestamp,
-      time: format(serveData.timestamp, 'HH:mm'),
-      notes: serveData.notes || '',
-      status: serveData.status || 'attempted',
-    },
-  });
+export default function EditServeDialog({ serve, open, onOpenChange, onSave }: EditServeDialogProps) {
+  const [status, setStatus] = useState<"completed" | "failed">(serve.status);
+  const [caseNumber, setCaseNumber] = useState<string>(serve.caseNumber || "");
+  const [notes, setNotes] = useState<string>(serve.notes || "");
+  const [isSaving, setIsSaving] = useState(false);
+  const [clientEmail, setClientEmail] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string>("Client");
+  const [coordinates, setCoordinates] = useState<any>(serve.coordinates || {});
 
   useEffect(() => {
-    if (open) {
-      form.reset({
-        id: serveData.id,
-        clientId: serveData.clientId,
-        date: serveData.timestamp,
-        time: format(serveData.timestamp, 'HH:mm'),
-        notes: serveData.notes || '',
-        status: serveData.status || 'attempted',
-      });
-    }
-  }, [open, serveData, form]);
+    setStatus(serve.status);
+    setCaseNumber(serve.caseNumber || "");
+    setNotes(serve.notes || "");
+    setCoordinates(serve.coordinates || {});
+  }, [serve]);
 
-  const onSubmit = async (data) => {
-    setIsSubmitting(true);
-    setError(null);
+  useEffect(() => {
+    const fetchClientEmail = async () => {
+      if (serve.clientId) {
+        try {
+          if (ACTIVE_BACKEND === BACKEND_PROVIDER.APPWRITE) {
+            // Fetch the client information from Appwrite
+            const clients = await appwrite.getClients();
+            const client = clients.find(c => c.$id === serve.clientId);
+            
+            if (client) {
+              setClientEmail(client.email);
+              setClientName(client.name || "Client");
+            }
+          } else {
+            // Fetch from Supabase
+            const { data, error } = await supabase
+              .from('clients')
+              .select('email, name')
+              .eq('id', serve.clientId)
+              .single();
+              
+            if (!error && data) {
+              setClientEmail(data.email);
+              setClientName(data.name || "Client");
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching client email:", error);
+        }
+      }
+    };
     
+    if (open) {
+      fetchClientEmail();
+    }
+  }, [open, serve.clientId]);
+
+  const handleSave = async () => {
+    if (isSaving) return;
+    
+    setIsSaving(true);
     try {
-      const [hours, minutes] = data.time.split(':').map(Number);
-      const timestamp = new Date(data.date);
-      timestamp.setHours(hours, minutes, 0, 0);
+      console.log("Saving serve with status:", status);
+      
+      const validCoordinates = isGeolocationCoordinates(coordinates) ? coordinates : null;
       
       const updatedServe: ServeAttemptData = {
-        ...serveData,
-        notes: data.notes,
-        status: data.status,
-        timestamp,
+        ...serve,
+        status,
+        caseNumber,
+        notes,
+        coordinates: validCoordinates
       };
       
-      await onUpdate(updatedServe);
-      console.error("Serve updated successfully");
-      onOpenChange(false);
-    } catch (err) {
-      console.error("Error updating serve:", err);
-      setError(err instanceof Error ? err.message : "Failed to update serve attempt");
+      const success = await onSave(updatedServe);
+      console.log("Save result:", success, "Updated serve:", updatedServe);
+      
+      if (success) {
+        if (clientEmail && serve.status !== status) {
+          try {
+            console.log("Sending status update email to:", clientEmail);
+            
+            const emailBody = createUpdateNotificationEmail(
+              clientName,
+              caseNumber,
+              new Date(serve.timestamp),
+              statusDisplayMap[serve.status],
+              statusDisplayMap[status],
+              notes
+            );
+            
+            const emailResult = await sendEmail({
+              to: clientEmail,
+              subject: `Serve Attempt Updated - ${caseNumber}`,
+              body: emailBody
+            });
+            
+            if (emailResult.success) {
+              console.log("Email Sent: Status update email sent to client");
+            } else {
+              console.error("Email sending failed:", emailResult.message);
+              console.log("Email Failed: Failed to send status update email: " + emailResult.message);
+            }
+          } catch (error) {
+            console.error("Error sending status update email:", error);
+            console.log("Email Error: Failed to send status update email");
+          }
+        }
+        
+        onOpenChange(false);
+      }
+    } catch (error) {
+      console.error("Error saving serve attempt:", error);
+      console.log("Save Error: An error occurred while saving");
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
-  };
-
-  const handleDelete = async () => {
-    try {
-      setIsDeleting(true);
-      await onDelete(serveData.id);
-      onOpenChange(false);
-    } catch (err) {
-      console.error("Error deleting serve:", err);
-      setError(err instanceof Error ? err.message : "Failed to delete serve attempt");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const getClientName = (clientId: string) => {
-    const client = clients.find(c => c.id === clientId);
-    return client ? client.name : 'Unknown Client';
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Edit Service Attempt</DialogTitle>
+          <DialogTitle>Edit Serve Attempt</DialogTitle>
           <DialogDescription>
-            Update the details of this service attempt for {getClientName(serveData.clientId)}
+            Update the details of this serve attempt.
           </DialogDescription>
         </DialogHeader>
         
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("1900-01-01")
-                        }
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Time</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {statusOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter any additional notes"
-                      className="min-h-[100px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            {error && (
-              <div className="bg-destructive/15 text-destructive p-3 rounded-md text-sm">
-                {error}
-              </div>
-            )}
-            
-            <div className="flex justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                className="text-destructive border-destructive hover:bg-destructive/10"
-                onClick={handleDelete}
-                disabled={isDeleting || isSubmitting}
+        <ScrollArea className="max-h-[60vh] pr-4 -mr-4">
+          <div className="space-y-4 py-4 px-1">
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={status}
+                onValueChange={(value: "completed" | "failed") => setStatus(value)}
               >
-                {isDeleting ? "Deleting..." : "Delete Serve"}
-              </Button>
-              
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  disabled={isSubmitting || isDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit"
-                  disabled={isSubmitting || isDeleting}
-                >
-                  {isSubmitting ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Select a status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {statusDisplayMap[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </form>
-        </Form>
+            
+            <div className="space-y-2">
+              <Label htmlFor="caseNumber">Case Number</Label>
+              <Input
+                id="caseNumber"
+                value={caseNumber}
+                onChange={(e) => setCaseNumber(e.target.value)}
+                placeholder="Enter case number"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add notes about this serve attempt"
+                rows={4}
+              />
+            </div>
+          </div>
+        </ScrollArea>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

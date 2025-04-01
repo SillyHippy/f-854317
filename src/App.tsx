@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -150,38 +149,27 @@ const AnimatedRoutes = () => {
   const createClient = async (client) => {
     try {
       console.log("Creating new client in Appwrite:", client);
-      const clientData = {
-        ...client,
-        id: client.id || `client-${Date.now()}`
-      };
-      
-      const newClient = await appwrite.createClient(clientData);
+      const newClient = await appwrite.createClient(client);
       if (newClient) {
         toast({
           title: "Client created",
           description: "New client has been added successfully",
+          variant: "success",
         });
-        
-        // Format the Appwrite response to match our ClientData structure
-        const formattedClient = {
+        const clientData = {
           id: newClient.$id,
           name: newClient.name,
           email: newClient.email,
           additionalEmails: newClient.additional_emails || [],
           phone: newClient.phone,
           address: newClient.address,
-          notes: newClient.notes || "",
+          notes: newClient.notes,
         };
-        
-        // Update local state with the new client
-        setClients(prev => [...prev, formattedClient]);
-        
-        // Trigger a data reload after a short delay
+        setClients(prev => [...prev, clientData]);
         setTimeout(() => {
           loadAppwriteData();
         }, 500);
-        
-        return formattedClient;
+        return clientData;
       }
     } catch (error) {
       console.error("Error creating client in Appwrite:", error);
@@ -201,30 +189,24 @@ const AnimatedRoutes = () => {
       const result = await appwrite.updateClient(updatedClient.id, {
         name: updatedClient.name,
         email: updatedClient.email,
-        additional_emails: updatedClient.additionalEmails || [],
+        additionalEmails: updatedClient.additionalEmails || [],
         phone: updatedClient.phone,
         address: updatedClient.address,
-        notes: updatedClient.notes || "",
+        notes: updatedClient.notes,
       });
       if (result) {
         toast({
           title: "Client updated",
           description: "Client has been successfully updated",
+          variant: "success",
         });
-        
-        // Update local state with the updated client
         setClients(prev => prev.map(client => 
           client.id === updatedClient.id ? updatedClient : client
         ));
-        
-        // Trigger a data reload after a short delay
         setTimeout(() => {
           loadAppwriteData();
         }, 500);
-        
-        return true;
       }
-      return false;
     } catch (error) {
       console.error("Error updating client in Appwrite:", error);
       toast({
@@ -232,7 +214,6 @@ const AnimatedRoutes = () => {
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
-      return false;
     }
   };
 
@@ -257,6 +238,7 @@ const AnimatedRoutes = () => {
       toast({
         title: "Client deleted",
         description: "Client and associated data have been removed",
+        variant: "success",
       });
       setTimeout(() => {
         loadAppwriteData();
@@ -296,6 +278,7 @@ const AnimatedRoutes = () => {
       toast({
         title: "Serve recorded",
         description: "Service attempt has been saved successfully",
+        variant: "success",
       });
       return true;
     } catch (error) {
@@ -323,6 +306,7 @@ const AnimatedRoutes = () => {
       toast({
         title: "Serve updated",
         description: "Service attempt has been updated successfully",
+        variant: "success",
       });
       return true;
     } catch (error) {
@@ -344,6 +328,7 @@ const AnimatedRoutes = () => {
       toast({
         title: "Serve deleted",
         description: "Service attempt has been removed",
+        variant: "success",
       });
       return true;
     } catch (error) {

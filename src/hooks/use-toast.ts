@@ -5,20 +5,17 @@ import { toast as sonnerToast } from "sonner";
 export interface CustomToastProps {
   title?: string;
   description?: string;
-  variant?: "default" | "destructive" | "success";
-  position?: "top-right" | "top-center" | "top-left" | "bottom-right" | "bottom-center" | "bottom-left";
+  variant?: "default" | "destructive";
 }
 
 // Create the base toast function
 const toastFn = (props?: CustomToastProps): string | number => {
   if (props) {
-    const { title, description, variant, position } = props;
+    const { title, description, variant } = props;
     if (variant === "destructive") {
-      return sonnerToast.error(title, { description, position });
-    } else if (variant === "success") {
-      return sonnerToast.success(title, { description, position });
+      return sonnerToast.error(title, { description });
     }
-    return sonnerToast(title, { description, position });
+    return sonnerToast(title, { description });
   }
   return sonnerToast("Notification");
 };
@@ -37,17 +34,15 @@ export const useToast = () => {
   return {
     toast: (props?: CustomToastProps) => {
       if (props) {
-        const { title, description, variant, position } = props;
+        const { title, description, variant } = props;
         if (variant === "destructive") {
-          return sonnerToast.error(title, { description, position });
-        } else if (variant === "success") {
-          return sonnerToast.success(title, { description, position });
+          return sonnerToast.error(title, { description });
         }
-        return sonnerToast(title, { description, position });
+        return sonnerToast(title, { description });
       }
       return {};
     },
-    dismiss: (toastId?: string | number) => {
+    dismiss: (toastId?: string) => {
       if (toastId) {
         sonnerToast.dismiss(toastId);
       } else {

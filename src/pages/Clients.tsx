@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Users, Pencil, Trash2, UserCheck, ArrowLeft } from "lucide-react";
@@ -33,7 +32,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { appwrite } from "@/lib/appwrite";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClientsProps {
   clients: ClientData[];
@@ -54,24 +53,27 @@ const Clients: React.FC<ClientsProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
   const [isDetailView, setIsDetailView] = useState(false);
+  const { toast } = useToast();
 
   const handleAddClient = async (client: ClientData) => {
     setIsLoading(true);
+    
+    const newClientId = `client-${Date.now()}`;
+    const newClient = {
+      ...client,
+      id: newClientId,
+    };
+    
     try {
-      // Call the addClient function from props which is connected to App.tsx's createClient
-      addClient(client);
-      setIsAddDialogOpen(false);
-      toast({
-        title: "Client added",
-        description: "New client has been added successfully",
-      });
+      // Use Appwrite to add client
+      const success = await appwrite.database.createDocument("clients", newClientId, newClient);
+      
+      if (success) {
+        addClient(newClient);
+        setIsAddDialogOpen(false);
+      }
     } catch (error) {
       console.error("Error adding client:", error);
-      toast({
-        title: "Error adding client",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -79,20 +81,16 @@ const Clients: React.FC<ClientsProps> = ({
 
   const handleUpdateClient = async (client: ClientData) => {
     setIsLoading(true);
+    
     try {
-      // Call the updateClient function from props which is connected to App.tsx's updateClient
-      updateClient(client);
-      toast({
-        title: "Client updated",
-        description: "Client has been successfully updated",
-      });
+      // Use Appwrite to update client
+      const success = await appwrite.database.updateDocument("clients", client.id, client);
+      
+      if (success) {
+        updateClient(client);
+      }
     } catch (error) {
       console.error("Error updating client:", error);
-      toast({
-        title: "Error updating client",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +107,7 @@ const Clients: React.FC<ClientsProps> = ({
           toast({
             title: "Client deleted",
             description: "Client has been successfully removed",
+            variant: "success"
           });
         }
         

@@ -39,6 +39,19 @@ interface MappedCoordinates {
   speed?: number | null;
 }
 
+// Define UploadedDocument interface globally
+interface UploadedDocument {
+  id: string;
+  clientId: string;
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  fileSize: number;
+  caseNumber?: string;
+  description?: string;
+  caseName?: string;
+}
+
 // Make sure GeolocationCoordinates follows the compatible interface
 declare global {
   interface GeolocationCoordinates extends GeolocationCoordinatesCompatible {}

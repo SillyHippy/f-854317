@@ -41,6 +41,10 @@ module.exports = async function(req, res) {
       auth: {
         user: process.env.SMTP_USER || 'resend',
         pass: process.env.SMTP_PASSWORD
+      },
+      tls: {
+        // Allow insecure TLS (do not validate certificate)
+        rejectUnauthorized: false
       }
     };
 
@@ -91,6 +95,11 @@ module.exports = async function(req, res) {
     const info = await transporter.sendMail(mailOptions);
 
     console.log('Email sent successfully:', info.messageId);
+    
+    // Set appropriate response headers
+    res.setHeader('Content-Type', 'application/json');
+    
+    // Return a proper JSON response
     return res.json({
       success: true,
       message: "Email sent successfully",
@@ -98,6 +107,11 @@ module.exports = async function(req, res) {
     });
   } catch (error) {
     console.error('Error sending email:', error);
+    
+    // Set appropriate response headers
+    res.setHeader('Content-Type', 'application/json');
+    
+    // Return a proper JSON error response
     return res.json({
       success: false,
       message: `Error sending email: ${error.message}`,

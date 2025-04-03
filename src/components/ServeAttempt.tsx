@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Card,
@@ -31,8 +32,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { UploadButton } from "@/utils/uploadthing";
-import { useUploadThing } from "@/utils/uploadthing";
 import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -46,8 +45,8 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { Badge } from "@/components/ui/badge"
-import { EditServeDialog } from "@/components/EditServeDialog";
-import { ServeHistory } from "@/components/ServeHistory";
+import EditServeDialog from "@/components/EditServeDialog";
+import { UploadButton } from "@/utils/uploadthing";
 
 export interface ServeAttemptData {
   id: string;
@@ -98,6 +97,7 @@ export function ServeAttempt({ serve, clients, deleteServe, updateServe }: Serve
     }
   };
 
+  // Fix for the slider onChange handler
   const handleSliderChange = (value: number[]) => {
     setFormData(prev => ({ ...prev, attemptNumber: value[0] }));
   };
@@ -311,7 +311,7 @@ export function ServeAttempt({ serve, clients, deleteServe, updateServe }: Serve
               max={10}
               step={1}
               aria-label="Attempt Number"
-              onChange={handleSliderChange}
+              onValueChange={handleSliderChange} // Changed to onValueChange to fix the type error
               disabled={!isEditing}
             />
             <p className="text-sm text-muted-foreground">
@@ -399,3 +399,6 @@ export function ServeAttempt({ serve, clients, deleteServe, updateServe }: Serve
     </Card>
   );
 }
+
+// Added default export for compatibility
+export default ServeAttempt;

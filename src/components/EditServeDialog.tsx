@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   AlertDialog,
@@ -8,14 +9,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { ServeAttemptData } from './ServeAttempt';
 import { useToast } from "@/hooks/use-toast"
-import { Textarea } from "@/components/ui/textarea"
 
 interface EditServeDialogProps {
   serve: ServeAttemptData;
@@ -29,9 +28,7 @@ const EditServeDialog: React.FC<EditServeDialogProps> = ({ serve, open, onOpenCh
   const [status, setStatus] = useState<"completed" | "failed">(serve.status === "completed" || serve.status === "failed" ? serve.status : "completed");
   const [notes, setNotes] = useState(serve.notes || "");
   const [updatedServe, setUpdatedServe] = useState<ServeAttemptData | null>(serve);
-  const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     setStatus(serve.status === "completed" || serve.status === "failed" ? serve.status : "completed");

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -10,24 +11,11 @@ import { ServeAttemptData } from "@/components/ServeAttempt";
 import { ClientData } from "@/components/ClientForm";
 import { appwrite } from "@/lib/appwrite";
 import { useToast } from "@/hooks/use-toast";
-import type { CaptionProps, RowProps } from "react-day-picker";
 
 interface DashboardProps {
   clients: ClientData[];
   serves: ServeAttemptData[];
 }
-
-const TableCaption = (props: CaptionProps) => (
-  <div className={props.className}>
-    {props.children}
-  </div>
-);
-
-const TableRow = (props: RowProps) => (
-  <div className={props.className}>
-    {props.children}
-  </div>
-);
 
 const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -77,7 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
     }
   };
 
-  const updateServe = async (serveData) => {
+  const updateServe = async (serveData: ServeAttemptData) => {
     try {
       // Create a proper payload with converted timestamp
       const timestamp = serveData.timestamp ? 
@@ -120,6 +108,39 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
     }
   };
 
+  // Custom calendar components
+  const CustomCaption = ({ displayMonth, onPreviousClick, onNextClick }: any) => (
+    <div className="flex items-center justify-between">
+      <p className="text-muted-foreground">
+        {format(displayMonth, "MMMM yyyy")}
+      </p>
+      <div className="flex gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onPreviousClick}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span className="sr-only">Go to previous month</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={onNextClick}
+        >
+          <ChevronRight className="h-4 w-4" />
+          <span className="sr-only">Go to next month</span>
+        </Button>
+      </div>
+    </div>
+  );
+
+  const CustomRow = ({ children }: { children: React.ReactNode }) => (
+    <div className="flex w-full mt-2">{children}</div>
+  );
+
   return (
     <div className="container mx-auto p-4">
       <Card className="w-full">
@@ -134,52 +155,9 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
               selected={date}
               onSelect={setDate}
               initialFocus
-              caption={({ className, children, ...props }) => (
-                <TableCaption className={className} {...props}>
-                  {children}
-                </TableCaption>
-              )}
-              row={({ className, children, ...props }) => (
-                <TableRow className={className} {...props}>
-                  {children}
-                </TableRow>
-              )}
-              navigation={({ className, children, ...props }) => (
-                <div className={className} {...props}>
-                  {children}
-                </div>
-              )}
               components={{
-                Caption: ({ className, displayMonth, onPreviousClick, onNextClick }) => (
-                  <div className="flex items-center justify-between">
-                    <p className="text-muted-foreground">
-                      {format(displayMonth, "MMMM yyyy")}
-                    </p>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => displayMonth && onPreviousClick?.()}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        <span className="sr-only">Go to previous month</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => displayMonth && onNextClick?.()}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                        <span className="sr-only">Go to next month</span>
-                      </Button>
-                    </div>
-                  </div>
-                ),
-                Row: ({ className, children }) => (
-                  <div className={className}>{children}</div>
-                ),
+                Caption: CustomCaption,
+                Row: CustomRow
               }}
             />
           </div>

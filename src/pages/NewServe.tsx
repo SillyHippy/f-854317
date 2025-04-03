@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import ServeAttempt, { ServeAttemptData } from "@/components/ServeAttempt";
+import { ServeAttempt, ServeAttemptData } from "@/components/ServeAttempt";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { appwrite } from "@/lib/appwrite";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { isGeolocationCoordinates } from "@/utils/gps";
 import { ClientData } from '@/components/ClientForm';
 
@@ -38,7 +39,7 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
       setCaseAttempts(attemptsForCase.length);
     } catch (error) {
       console.error("Error fetching serve attempts:", error);
-      toast({
+      useToast().toast({
         title: "Error",
         description: "Failed to fetch serve attempts",
         variant: "destructive",
@@ -94,7 +95,7 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
         coordinates: formattedCoordinates, // Ensure coordinates are a string
       });
 
-      toast({
+      useToast().toast({
         title: "Serve recorded",
         description: "Service attempt has been saved successfully",
         variant: "success",
@@ -103,9 +104,9 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
       navigate("/history");
     } catch (error) {
       console.error("Error saving serve attempt:", error);
-      toast({
+      useToast().toast({
         title: "Error",
-        description: error.message || "Failed to save serve attempt",
+        description: error instanceof Error ? error.message : "Failed to save serve attempt",
         variant: "destructive",
       });
     }

@@ -9,12 +9,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
 import { ServeAttemptData } from './ServeAttempt';
 import { useToast } from "@/hooks/use-toast"
+import { Textarea } from "@/components/ui/textarea"
 
 interface EditServeDialogProps {
   serve: ServeAttemptData;
@@ -25,12 +27,15 @@ interface EditServeDialogProps {
 
 const EditServeDialog: React.FC<EditServeDialogProps> = ({ serve, open, onOpenChange, onSave }) => {
   const { toast } = useToast();
+  // Only allow completed or failed status to match ServeAttemptData
   const [status, setStatus] = useState<"completed" | "failed">(serve.status === "completed" || serve.status === "failed" ? serve.status : "completed");
   const [notes, setNotes] = useState(serve.notes || "");
   const [updatedServe, setUpdatedServe] = useState<ServeAttemptData | null>(serve);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    // Ensure status is always a valid value based on ServeAttemptData
+    // Default to completed if status is unknown
     setStatus(serve.status === "completed" || serve.status === "failed" ? serve.status : "completed");
     setNotes(serve.notes || "");
     setUpdatedServe(serve);
@@ -42,14 +47,16 @@ const EditServeDialog: React.FC<EditServeDialogProps> = ({ serve, open, onOpenCh
     if (!updatedServe) return;
     
     try {
-      setIsLoading(true);
+      setIsSaving(true);
       
+      // Create a proper payload with type-safe status
       const payload: ServeAttemptData = {
         ...updatedServe,
         status: status,
         notes: notes || ""
       };
       
+      // Call the onSave function provided by the parent component
       const success = await onSave(payload);
       
       if (success) {
@@ -73,7 +80,7 @@ const EditServeDialog: React.FC<EditServeDialogProps> = ({ serve, open, onOpenCh
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -95,6 +102,7 @@ const EditServeDialog: React.FC<EditServeDialogProps> = ({ serve, open, onOpenCh
               id="status"
               value={status}
               onChange={(e) => {
+                // Type guard to ensure only valid values are set
                 const newStatus = e.target.value;
                 if (newStatus === "completed" || newStatus === "failed") {
                   setStatus(newStatus);
@@ -118,9 +126,9 @@ const EditServeDialog: React.FC<EditServeDialogProps> = ({ serve, open, onOpenCh
           </div>
         </form>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-          <AlertDialogAction disabled={isLoading} onClick={handleSubmit}>
-            {isLoading ? "Saving..." : "Save"}
+          <AlertDialogCancel disabled={isSaving}>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={isSaving} onClick={handleSubmit}>
+            {isSaving ? "Saving..." : "Save"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

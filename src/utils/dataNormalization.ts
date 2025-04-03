@@ -1,4 +1,3 @@
-
 import { ServeAttemptData } from "@/components/ServeAttempt";
 import { ClientData } from "@/components/ClientForm";
 
@@ -21,7 +20,6 @@ export function normalizeServeData(serve: any): ServeAttemptData | null {
     id,
     clientId: serve.clientId || serve.client_id || "unknown",
     clientName: serve.clientName || serve.client_name || "Unknown Client",
-    clientEmail: serve.clientEmail || serve.client_email || "",
     caseNumber: serve.caseNumber || serve.case_number || "Unknown",
     caseName: serve.caseName || serve.case_name || "Unknown Case",
     coordinates: serve.coordinates || null,
@@ -39,7 +37,7 @@ export function normalizeServeData(serve: any): ServeAttemptData | null {
 export function normalizeServeDataArray(serves: any[]) {
   return serves
     .map((serve) => normalizeServeData(serve))
-    .filter((serve) => serve !== null) as ServeAttemptData[];
+    .filter((serve) => serve !== null);
 }
 
 /**
@@ -67,8 +65,7 @@ export function addClientNamesToServes(serves: ServeAttemptData[], clients: Clie
     if (client) {
       return {
         ...serve,
-        clientName: client.name,
-        clientEmail: client.email || serve.clientEmail || ""
+        clientName: client.name
       };
     }
     

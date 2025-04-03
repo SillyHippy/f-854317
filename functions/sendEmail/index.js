@@ -91,10 +91,6 @@ module.exports = async function(req, res) {
     const info = await transporter.sendMail(mailOptions);
 
     console.log('Email sent successfully:', info.messageId);
-    
-    // Set the correct content type for the response
-    res.setHeader('Content-Type', 'application/json');
-    
     return res.json({
       success: true,
       message: "Email sent successfully",
@@ -102,10 +98,6 @@ module.exports = async function(req, res) {
     });
   } catch (error) {
     console.error('Error sending email:', error);
-    
-    // Set the correct content type for the response
-    res.setHeader('Content-Type', 'application/json');
-    
     return res.json({
       success: false,
       message: `Error sending email: ${error.message}`,

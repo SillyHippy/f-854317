@@ -43,9 +43,12 @@ module.exports = async function(req, res) {
         pass: process.env.SMTP_PASSWORD
       },
       tls: {
-        // Allow insecure TLS (do not validate certificate)
-        rejectUnauthorized: false
-      }
+        // Do not fail on invalid certs - needed for some SMTP providers
+        rejectUnauthorized: false,
+        ciphers: 'SSLv3'
+      },
+      debug: true, // Enable debug output
+      logger: true  // Log information to the console
     };
 
     console.log("Using SMTP config:", {
@@ -65,6 +68,10 @@ module.exports = async function(req, res) {
       console.log("SMTP connection verified successfully");
     } catch (smtpError) {
       console.error("SMTP connection verification failed:", smtpError);
+      
+      // Set appropriate response headers
+      res.setHeader('Content-Type', 'application/json');
+      
       return res.json({
         success: false,
         message: `Failed to connect to SMTP server: ${smtpError.message}`,
@@ -95,6 +102,7 @@ module.exports = async function(req, res) {
     const info = await transporter.sendMail(mailOptions);
 
     console.log('Email sent successfully:', info.messageId);
+    console.log('Full send info:', info);
     
     // Set appropriate response headers
     res.setHeader('Content-Type', 'application/json');

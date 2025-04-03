@@ -1,4 +1,3 @@
-
 import React from "react";
 import { 
   Card, 
@@ -11,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2 } from "lucide-react";
 import { ServeAttemptData } from "@/components/ServeAttempt";
+import { Badge } from "@/components/ui/badge";
 
 interface ServeHistoryProps {
   serves: ServeAttemptData[];
@@ -144,15 +144,12 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
             <CardHeader className="pb-2">
               <CardTitle className="flex justify-between items-center">
                 <span>{clientName}</span>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  serve.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                  serve.status === 'failed' ? 'bg-amber-100 text-amber-700' : 
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {serve.status === 'completed' ? 'Successful' : 
-                   serve.status === 'failed' ? 'Failed' : 
-                   'Unknown'}
-                </span>
+                <Badge
+                  variant={serve.status === "completed" ? "default" : "outline"}
+                  className={`${serve.status === "completed" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}
+                >
+                  {serve.status === "completed" ? "Completed" : "Failed"}
+                </Badge>
               </CardTitle>
               <CardDescription>
                 <span className="flex items-center gap-1">

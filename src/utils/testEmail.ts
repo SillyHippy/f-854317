@@ -2,51 +2,43 @@
 import { sendEmail } from './email';
 
 /**
- * Utility function to test email sending functionality
+ * Test email functionality by sending a simple message to the business email
  */
-export const testEmailFunctionality = async (): Promise<{ success: boolean; message: string }> => {
+export async function testEmailFunctionality(): Promise<{ success: boolean; message: string }> {
   try {
-    console.log("Running messaging functionality test...");
+    console.log("Starting email test process");
     
     const businessEmail = "info@justlegalsolutions.org";
-    const testSubject = "ServeTracker Message Test - " + new Date().toLocaleString();
-    const testBody = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Message Test</title>
-      </head>
-      <body>
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #2c3e50;">ServeTracker Messaging Test</h1>
-          <p>This is a test message from the ServeTracker application.</p>
-          <p>If you received this message, your messaging functionality is working correctly!</p>
-          <p><strong>Time sent:</strong> ${new Date().toLocaleString()}</p>
-          <div style="margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; font-size: 12px; color: #777;">
-            This is an automated test message from ServeTracker.
-          </div>
-        </div>
-      </body>
-      </html>
+    
+    // Create a simple test email
+    const emailBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+        <h2 style="color: #4f46e5; margin-bottom: 20px;">Test Email</h2>
+        <p>This is a test email to verify that the email functionality is working correctly.</p>
+        <p>Sent at: ${new Date().toLocaleString()}</p>
+        <p style="margin-top: 30px; color: #666; font-size: 12px;">
+          This is an automated test message from JLS Process Server Pro.
+        </p>
+      </div>
     `;
     
-    console.log(`Sending test message to: ${businessEmail}`);
-    
+    // Send the test email
+    console.log("Sending test email to:", businessEmail);
     const result = await sendEmail({
       to: businessEmail,
-      subject: testSubject,
-      body: testBody,
-      html: testBody
+      subject: "Test Email from JLS Process Server Pro",
+      body: emailBody,
+      html: emailBody
     });
     
-    console.log("Test message result:", result);
+    console.log("Test email result:", result);
+    
     return result;
   } catch (error) {
-    console.error("Error in test message function:", error);
-    return { 
-      success: false, 
-      message: `Test failed with error: ${error instanceof Error ? error.message : String(error)}` 
+    console.error("Error in test email process:", error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Unknown error during email test"
     };
   }
-};
+}

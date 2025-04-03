@@ -155,3 +155,7 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
 };
 
 export default NewServe;
+
+const formatDate = (date: Date): string => {
+  return date.toLocaleString();
+};

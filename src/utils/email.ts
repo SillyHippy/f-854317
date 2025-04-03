@@ -160,57 +160,60 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
       ];
     }
 
-    // Call the function endpoint directly
-    const response = await fetch('/api/function/sendEmail', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
-
-    // Check for non-successful status codes
-    if (!response.ok) {
-      let errorMessage = `HTTP error ${response.status}: ${response.statusText}`;
-      
-      try {
-        // Try to parse response as JSON, but handle HTML or text responses too
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } else {
-          // Just get text for non-JSON responses
-          const textError = await response.text();
-          errorMessage = `${errorMessage} - Response was not JSON: ${textError.substring(0, 100)}...`;
-        }
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        // Just use the HTTP error message if parsing fails
-      }
-      
-      throw new Error(`Failed to send email: ${errorMessage}`);
-    }
-
-    // Parse JSON response, handle potential parsing errors
-    let result;
     try {
-      result = await response.json();
-    } catch (jsonError) {
-      console.warn("Couldn't parse JSON response:", jsonError);
-      // If we can't parse JSON but the response was OK, we'll consider it a success
-      return { 
-        success: true, 
-        message: 'Email appears to have been sent, but received non-JSON response' 
-      };
+      // Call the function endpoint directly
+      const response = await fetch('/api/function/sendEmail', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      // Check if the response is OK regardless of content type
+      if (response.ok) {
+        // Try to parse as JSON, but don't fail if it's not JSON
+        try {
+          const result = await response.json();
+          console.log("Email sent successfully:", result);
+          return { 
+            success: true, 
+            message: 'Email sent successfully' 
+          };
+        } catch (jsonError) {
+          console.log("Response was not JSON, but the request was successful");
+          return { 
+            success: true, 
+            message: 'Email appears to have been sent, but received non-JSON response' 
+          };
+        }
+      } else {
+        // Handle error responses
+        let errorMessage = `HTTP error ${response.status}: ${response.statusText}`;
+        
+        try {
+          // Only try to parse JSON for JSON content types
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } else {
+            // For non-JSON responses, get text
+            const textError = await response.text();
+            errorMessage = `${errorMessage} - Response: ${textError.substring(0, 100)}...`;
+          }
+        } catch (parseError) {
+          // If we can't parse the error, just use the HTTP error
+          console.error('Error parsing error response:', parseError);
+        }
+        
+        throw new Error(`Failed to send email: ${errorMessage}`);
+      }
+    } catch (fetchError) {
+      // Handle fetch errors (network issues, etc.)
+      console.error('Fetch error:', fetchError);
+      throw new Error(`Network error sending email: ${fetchError.message}`);
     }
-    
-    console.log("Email sent successfully:", result);
-    
-    return { 
-      success: true, 
-      message: 'Email sent successfully' 
-    };
   } catch (error) {
     console.error('Error sending email:', error);
     return { 

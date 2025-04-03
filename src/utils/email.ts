@@ -173,37 +173,16 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
       body: JSON.stringify(payload)
     });
 
-    // If the response is not OK but the error is just about parsing JSON, we can consider it a success
-    // This handles cases where the server returns HTML instead of JSON but the email was sent
-    if (!response.ok) {
-      // Try to get error information from the response
-      let errorMessage = `HTTP error ${response.status}: ${response.statusText}`;
-      let responseText;
-      
-      try {
-        responseText = await response.text();
-        
-        // If the response contains "success" or "success:true", it might indicate success despite non-JSON format
-        if (responseText.includes("success") && !responseText.includes("success:false")) {
-          return {
-            success: true,
-            message: 'Email appears to have been sent (non-JSON success response)'
-          };
-        }
-        
-        errorMessage = `${errorMessage} - Response: ${responseText.substring(0, 100)}...`;
-      } catch (textError) {
-        // Cannot read response text
-        console.error("Error reading response text:", textError);
-      }
-      
-      throw new Error(`Failed to send email: ${errorMessage}`);
-    }
+    // Log the raw response for debugging
+    const responseText = await response.text();
+    console.log("API request completed in " + (Date.now() - performance.now()) + "ms with status " + response.status);
+    console.log("Raw response:", responseText.substring(0, 200) + "...");
 
-    // Try to parse the response as JSON, but handle non-JSON responses
+    // Try to parse the response as JSON
     let result;
     try {
-      result = await response.json();
+      // Parse the response as JSON
+      result = JSON.parse(responseText);
       console.log("Email sending result:", result);
       
       return { 
@@ -211,16 +190,31 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
         message: result.message || 'Email sent successfully' 
       };
     } catch (jsonError) {
-      console.warn("Couldn't parse JSON response:", jsonError);
+      console.log("Couldn't parse response as JSON:", jsonError);
       
-      // Check if the response status was OK (200-299)
-      if (response.ok) {
-        return { 
-          success: true, 
-          message: 'Email appears to have been sent, but received non-JSON response' 
-        };
+      // Check if the response contains HTML
+      if (responseText.includes("<!DOCTYPE html>") || responseText.includes("<html")) {
+        console.log("Received HTML response, which typically means the email was sent successfully");
+        
+        // Check if the response status was OK (200-299)
+        if (response.ok) {
+          return { 
+            success: true, 
+            message: 'Email appears to have been sent, but received non-JSON response' 
+          };
+        } else {
+          throw new Error(`Failed to send email: Server responded with status ${response.status}`);
+        }
       } else {
-        throw new Error('Failed to send email: Invalid response format');
+        // Not HTML either, just return the raw text
+        if (response.ok) {
+          return { 
+            success: true, 
+            message: 'Email appears to have been sent with response: ' + responseText.substring(0, 100) 
+          };
+        } else {
+          throw new Error(`Failed to send email: ${responseText}`);
+        }
       }
     }
   } catch (error) {

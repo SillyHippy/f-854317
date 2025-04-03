@@ -37,14 +37,14 @@ module.exports = async function(req, res) {
     const smtpConfig = {
       host: process.env.SMTP_HOST || 'smtp.resend.com',
       port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
+      secure: false, // Use TLS instead of SSL for port 587
       auth: {
         user: process.env.SMTP_USER || 'resend',
         pass: process.env.SMTP_PASSWORD
       },
       tls: {
-        // Allow insecure TLS (do not validate certificate)
-        rejectUnauthorized: false
+        // Do not fail on invalid certs - but DO verify
+        rejectUnauthorized: true
       }
     };
 

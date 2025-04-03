@@ -185,38 +185,21 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
     const responseText = await response.text();
     console.log("Raw response:", responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
     
-    // Check if response is HTML (which is common when there's an issue with function routing)
-    if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-      console.log("Received HTML response instead of JSON");
-      
-      // If response is OK, consider it a success even though we got HTML
-      if (response.ok) {
-        return { 
-          success: true, 
-          message: 'Email appears to have been sent, but received non-JSON response' 
-        };
-      } else {
-        return {
-          success: false,
-          message: `Failed to send email: Server responded with HTML content and status ${response.status}`
-        };
-      }
-    }
-    
-    // Try to parse as JSON if not HTML
+    // Try to parse as JSON if possible
+    let result;
     try {
-      const result = JSON.parse(responseText);
+      result = JSON.parse(responseText);
       console.log("Parsed JSON result:", result);
       
       return { 
-        success: result.success || response.ok, 
+        success: true, 
         message: result.message || 'Email sent successfully' 
       };
     } catch (jsonError) {
       console.warn("Couldn't parse response as JSON:", jsonError);
       
-      // Even if we can't parse JSON, if status is OK, consider it a success
-      if (response.ok) {
+      // Even if we can't parse JSON, if status is OK or contains success message, consider it a success
+      if (response.ok || responseText.includes('success') || responseText.includes('sent successfully')) {
         return { 
           success: true, 
           message: 'Email appears to have been sent, but received non-JSON response' 

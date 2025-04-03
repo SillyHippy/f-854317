@@ -51,19 +51,11 @@ module.exports = async function(req, res) {
       logger: true  // Log information to the console
     };
 
-    // Check if Auto TLS is enabled
-    if (process.env.SMTP_AUTO_TLS === 'true') {
-      smtpConfig.requireTLS = true;
-      smtpConfig.opportunisticTLS = true;
-    }
-
     console.log("Using SMTP config:", {
       host: smtpConfig.host,
       port: smtpConfig.port,
       secure: smtpConfig.secure,
       user: smtpConfig.auth.user,
-      requireTLS: smtpConfig.requireTLS,
-      opportunisticTLS: smtpConfig.opportunisticTLS
       // Not logging the password for security
     });
 

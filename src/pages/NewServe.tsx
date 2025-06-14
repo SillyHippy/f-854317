@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ServeAttempt, { ServeAttemptData } from "@/components/ServeAttempt";
@@ -31,9 +32,9 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
   const fetchAttemptCount = async (clientId: string, caseNumber: string) => {
     setIsLoading(true);
     try {
-      const serveAttempts = await appwrite.getClientServeAttempts(clientId);
+      const serveAttempts = await appwrite.getServeAttempts();
       const attemptsForCase = serveAttempts.filter(
-        (attempt) => attempt.case_number === caseNumber
+        (attempt) => attempt.client_id === clientId && attempt.case_number === caseNumber
       );
       setCaseAttempts(attemptsForCase.length);
     } catch (error) {
@@ -51,11 +52,6 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
   const handleServeComplete = async (serveData: ServeAttemptData) => {
     console.log("Serve complete, data:", serveData);
 
-    if (!isGeolocationCoordinates(serveData.coordinates)) {
-      console.warn("Invalid coordinates detected, setting to null");
-      serveData.coordinates = null;
-    }
-
     try {
       // Ensure all required fields are present
       if (!serveData.clientId || serveData.clientId === "unknown") {
@@ -68,31 +64,21 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
         serveData.caseName = "Unknown Case";
       }
 
-      // Format coordinates as a string if needed
-      let formattedCoordinates = null;
-      if (serveData.coordinates) {
-        if (typeof serveData.coordinates === 'object') {
-          formattedCoordinates = `${serveData.coordinates.latitude},${serveData.coordinates.longitude}`;
-        } else {
-          formattedCoordinates = serveData.coordinates;
-        }
+      // Ensure coordinates are properly formatted as string
+      if (typeof serveData.coordinates !== 'string') {
+        console.warn("Coordinates not properly formatted, setting to null");
+        serveData.coordinates = null;
       }
 
-      console.log("Full serve data being saved:", {
-        ...serveData,
-        coordinates: formattedCoordinates,
-      });
+      console.log("Final serve data being saved:", serveData);
 
       // Save the serve data
-      addServe({
-        ...serveData,
-        coordinates: formattedCoordinates, // Ensure coordinates are a string
-      });
+      addServe(serveData);
 
       toast({
         title: "Serve recorded",
         description: "Service attempt has been saved successfully",
-        variant: "success",
+        variant: "default",
       });
 
       navigate("/history");
@@ -100,7 +86,7 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
       console.error("Error saving serve attempt:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save serve attempt",
+        description: error instanceof Error ? error.message : "Failed to save serve attempt",
         variant: "destructive",
       });
     }

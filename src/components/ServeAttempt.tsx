@@ -43,7 +43,7 @@ export interface ServeAttemptData {
   clientName?: string;
   clientEmail?: string;
   imageUrl: string;
-  coordinates: GeolocationCoordinates | string;
+  coordinates: string | null;
   notes: string;
   timestamp: Date;
   status: "completed" | "failed";
@@ -292,34 +292,31 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     setIsSending(true);
 
     try {
+      console.log("Starting serve submission process...");
+
       // Upload image to storage and get URL
       const { fileUrl } = await uploadImageAndGetUrl(capturedImage);
-      console.log("Image uploaded, URL:", fileUrl);
+      console.log("Image uploaded successfully, URL:", fileUrl);
 
-      const imageWithGPS = embedGpsIntoImage(capturedImage, location);
-
-      // Debug the image data for troubleshooting
-      console.log("Image with GPS data properties:");
-      debugImageData(imageWithGPS);
-
-      // Format coordinates as a string
+      // Format coordinates as a simple string
       const formattedCoordinates = `${location.latitude},${location.longitude}`;
+      console.log("Formatted coordinates:", formattedCoordinates);
 
       // Get client email for notifications
       const clientEmail = selectedClient.email || null;
-      console.log(`Using client email for notifications: ${clientEmail || "Not available"}`);
+      console.log(`Client email for notifications: ${clientEmail || "Not available"}`);
       
       // Get address from selected case for email
       const address = selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available";
 
-      const serveData: Omit<ServeAttemptData, 'id'> = {
+      const serveData: ServeAttemptData = {
         clientId: selectedClient.id,
         clientName: selectedClient.name,
         clientEmail: clientEmail,
         caseNumber: selectedCase.caseNumber,
         caseName: selectedCase.caseName || "Unknown Case",
-        imageUrl: fileUrl, // Use the new image URL
-        coordinates: formattedCoordinates,
+        imageUrl: fileUrl, // This is now a string URL
+        coordinates: formattedCoordinates, // This is now a string
         address: address,
         notes: data.notes || "",
         timestamp: new Date(),
@@ -327,14 +324,14 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         attemptNumber: caseAttemptCount + 1,
       };
 
-      console.log("Submitting serve attempt data and sending email notification");
+      console.log("Serve data to submit:", serveData);
 
-      // First save the serve attempt
-      onComplete(serveData as ServeAttemptData);
+      // Save the serve attempt first
+      onComplete(serveData);
 
       // Then send the email notification
       try {
-        console.log("Preparing to send notification email with image");
+        console.log("Preparing to send notification email...");
         
         const emailBody = createServeEmailBody(
           serveData.clientName || "Unknown Client",
@@ -355,7 +352,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           recipients.push(clientEmail);
         }
         
-        console.log(`Sending notification email to ${recipients.length} recipients with photo attachment`);
+        console.log(`Sending notification email to ${recipients.length} recipients`);
         
         // Send email with image attachment 
         const emailResult = await sendEmail({
@@ -378,7 +375,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         } else {
           toast({
             title: "Partial Success",
-            description: "Serve recorded but email notification failed to send.",
+            description: `Serve recorded but email failed: ${emailResult.message}`,
             variant: "destructive",
           });
         }
@@ -402,7 +399,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       console.error("Error submitting serve attempt:", error);
       toast({
         title: "Error",
-        description: "Failed to submit serve attempt. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to submit serve attempt. Please try again.",
         variant: "destructive",
       });
     } finally {

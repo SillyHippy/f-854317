@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import PaginatedServeHistory from "@/components/PaginatedServeHistory";
 import { ClientData } from "@/components/ClientForm";
 import { ServeAttemptData } from "@/components/ServeAttempt";
@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { History as HistoryIcon, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import EditServeDialog from "@/components/EditServeDialog";
-import { useOptimizedServes } from "@/hooks/useOptimizedServes";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 interface HistoryProps {
@@ -15,36 +14,24 @@ interface HistoryProps {
   clients: ClientData[];
   deleteServe: (id: string) => Promise<boolean>;
   updateServe: (serve: ServeAttemptData) => Promise<boolean>;
+  refreshServes: () => Promise<void>;
 }
 
 const History: React.FC<HistoryProps> = ({ 
-  serves: propsServes, 
+  serves, 
   clients, 
   deleteServe,
-  updateServe
+  updateServe,
+  refreshServes
 }) => {
   const [selectedServe, setSelectedServe] = useState<ServeAttemptData | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
-
-  // Use optimized serves hook with higher limit for history page
-  const {
-    serves: optimizedServes,
-    isLoading,
-    error,
-    refreshServes,
-    lastSync,
-    totalCount
-  } = useOptimizedServes({ 
-    limit: 100, // Load more for history page
-    autoSync: false // Disable auto-sync to prevent performance issues
-  });
-
-  // Use optimized serves if available, otherwise fall back to props
-  const servesToDisplay = optimizedServes.length > 0 ? optimizedServes : propsServes;
 
   const handleRefresh = async () => {
     try {
+      setIsRefreshing(true);
       await refreshServes();
       toast({
         title: "History Refreshed",
@@ -57,6 +44,8 @@ const History: React.FC<HistoryProps> = ({
         description: "Failed to refresh serve history.",
         variant: "destructive",
       });
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -74,9 +63,6 @@ const History: React.FC<HistoryProps> = ({
           description: "Serve attempt has been deleted",
           variant: "default"
         });
-        
-        // Refresh the optimized data
-        await refreshServes();
       } else {
         throw new Error("Failed to delete serve attempt");
       }
@@ -90,34 +76,18 @@ const History: React.FC<HistoryProps> = ({
     }
   };
 
-  if (error) {
-    return (
-      <div className="page-container">
-        <div className="text-center p-8">
-          <p className="text-destructive mb-4">Error loading serve history: {error}</p>
-          <Button onClick={handleRefresh}>Try Again</Button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <div className="page-container">
         <div className="flex flex-wrap justify-between items-center mb-4">
           <h1 className="text-3xl font-bold tracking-tight">Serve History</h1>
           <div className="flex gap-2 items-center">
-            {lastSync && (
-              <span className="text-xs text-muted-foreground">
-                Last sync: {lastSync.toLocaleTimeString()}
-              </span>
-            )}
             <Button 
               variant="outline" 
               onClick={handleRefresh}
-              disabled={isLoading}
+              disabled={isRefreshing}
             >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
@@ -125,17 +95,11 @@ const History: React.FC<HistoryProps> = ({
 
         <div className="mb-8">
           <p className="text-muted-foreground">
-            View your serve history and outcomes ({totalCount} total serves)
+            View your serve history and outcomes ({serves.length} total serves)
           </p>
         </div>
 
-        {isLoading && servesToDisplay.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-            <h3 className="mb-2 text-xl font-semibold">Loading serve history...</h3>
-            <p className="text-muted-foreground">Please wait while we fetch your data</p>
-          </div>
-        ) : servesToDisplay.length === 0 ? (
+        {serves.length === 0 ? (
           <div className="rounded-lg border border-dashed p-12 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <HistoryIcon className="h-6 w-6 text-primary" />
@@ -150,7 +114,7 @@ const History: React.FC<HistoryProps> = ({
           </div>
         ) : (
           <PaginatedServeHistory 
-            serves={servesToDisplay} 
+            serves={serves} 
             clients={clients} 
             onDelete={handleDelete}
             onEdit={handleEditServe}

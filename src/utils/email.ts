@@ -157,17 +157,27 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
 
     // Add attachments if there's image data
     if (emailData.imageData) {
-      payload['attachments'] = [
-        {
-          filename: 'serve_evidence.jpeg',
-          content: extractBase64(emailData.imageData),
-          encoding: 'base64'
+      try {
+        const base64Content = extractBase64(emailData.imageData);
+        if (base64Content) {
+          payload.attachments = [
+            {
+              filename: 'serve_evidence.jpeg',
+              content: base64Content,
+              encoding: 'base64'
+            }
+          ];
+          console.log("Added image attachment to email");
+        } else {
+          console.warn("Could not extract base64 from image data");
         }
-      ];
+      } catch (error) {
+        console.error("Error processing image attachment:", error);
+      }
     }
 
     console.log("Sending message to", recipients.length, "recipients with", 
-      emailData.imageData ? "photo attachment" : "no attachments");
+      payload.attachments ? "photo attachment" : "no attachments");
 
     // Call the netlify function endpoint
     const response = await fetch('/.netlify/functions/sendEmail', {

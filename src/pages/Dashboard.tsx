@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -23,7 +22,6 @@ import { ServeAttemptData } from "@/components/ServeAttempt";
 import { ClientData } from "@/components/ClientForm";
 import ServeHistory from "@/components/ServeHistory";
 import EditServeDialog from "@/components/EditServeDialog";
-import { useOptimizedServes } from "@/hooks/useOptimizedServes";
 import { useToast } from "@/hooks/use-toast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -32,7 +30,7 @@ interface DashboardProps {
   serves: ServeAttemptData[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) => {
+const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
   const { toast } = useToast();
   const [editingServe, setEditingServe] = useState<ServeAttemptData | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -40,38 +38,25 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
   const [pendingCount, setPendingCount] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
 
-  // Use optimized serves for dashboard with small limit
-  const {
-    serves: optimizedServes,
-    recentServes,
-    isLoading,
-    refreshServes,
-    totalCount
-  } = useOptimizedServes({ 
-    limit: 20, // Small limit for dashboard
-    autoSync: true, // Enable auto-sync but with longer interval
-    syncInterval: 60000 // 1 minute instead of 5 seconds
-  });
-
-  // Use optimized serves if available, otherwise fall back to props
-  const allServes = optimizedServes.length > 0 ? optimizedServes : propsServes.slice(0, 20);
+  // Show only the most recent 6 serves on dashboard
+  const recentServes = serves.slice(0, 6);
 
   // Process serves data for metrics (only when data changes)
   useEffect(() => {
-    if (!allServes.length) return;
+    if (!serves.length) return;
     
-    console.log("Dashboard: Processing serves metrics for", allServes.length, "serves");
+    console.log("Dashboard: Processing serves metrics for", serves.length, "serves");
     
     // Calculate completed and pending counts
-    const completed = allServes.filter(serve => serve.status === "completed").length;
-    const pending = allServes.filter(serve => serve.status === "failed").length;
+    const completed = serves.filter(serve => serve.status === "completed").length;
+    const pending = serves.filter(serve => serve.status === "failed").length;
     setCompletedCount(completed);
     setPendingCount(pending);
     
     // Get today's serves
     const today = new Date();
     const todayStr = today.toLocaleDateString();
-    const todayServes = allServes.filter(serve => {
+    const todayServes = serves.filter(serve => {
       if (!serve.timestamp) return false;
       
       let serveDate;
@@ -79,15 +64,6 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
         serveDate = new Date(serve.timestamp);
       } else if (serve.timestamp instanceof Date) {
         serveDate = serve.timestamp;
-      } else if (typeof serve.timestamp === 'object' && serve.timestamp !== null) {
-        // Handle Appwrite timestamp format
-        const timestampObj = serve.timestamp as any;
-        if (timestampObj._type === 'Date' && timestampObj.value) {
-          const valueObj = timestampObj.value as any;
-          serveDate = new Date(valueObj.iso || valueObj.value || valueObj);
-        } else {
-          return false;
-        }
       } else {
         return false;
       }
@@ -96,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
     });
     
     setTodayCount(todayServes.length);
-  }, [allServes]);
+  }, [serves]);
 
   // Handle edit serve
   const handleEditServe = (serve: ServeAttemptData) => {
@@ -107,10 +83,6 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
   // Handle save edited serve
   const handleSaveServe = async (updatedServe: ServeAttemptData): Promise<boolean> => {
     try {
-      // This would typically call the parent's update function
-      // For now, just refresh the optimized data
-      await refreshServes();
-      
       toast({
         title: "Serve updated",
         description: "Service attempt has been updated successfully",
@@ -190,7 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-muted-foreground text-sm font-medium">Total Serves</p>
-                  <h2 className="text-3xl font-bold mt-1">{totalCount}</h2>
+                  <h2 className="text-3xl font-bold mt-1">{serves.length}</h2>
                 </div>
                 <div className="p-3 rounded-full bg-primary/10 text-primary">
                   <ClipboardList className="h-6 w-6" />
@@ -216,16 +188,12 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
               <h2 className="text-xl font-semibold tracking-tight">Recent Serve Activity</h2>
               <Link to="/history">
                 <Button variant="ghost" size="sm">
-                  View All
+                  View All ({serves.length})
                 </Button>
               </Link>
             </div>
 
-            {isLoading && recentServes.length === 0 ? (
-              <Card className="p-8 text-center">
-                <p className="text-muted-foreground">Loading serve history...</p>
-              </Card>
-            ) : recentServes.length > 0 ? (
+            {recentServes.length > 0 ? (
               <ServeHistory 
                 serves={recentServes} 
                 clients={clients} 

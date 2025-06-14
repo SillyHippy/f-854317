@@ -11,16 +11,14 @@ import Index from './pages/Index';
 import LoginPage from './pages/LoginPage';
 import MigrationPage from './pages/Migration';
 import DataExport from './pages/DataExport';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ServeAttemptData } from './components/ServeAttempt';
 import { ClientData } from './components/ClientForm';
 import { appwrite } from './lib/appwrite';
 import {
   checkAppwriteConnection,
   loadDataFromAppwrite,
-  clearLocalStorage,
-  getActiveBackend,
 } from "./utils/dataSwitch";
-import { ACTIVE_BACKEND, BACKEND_PROVIDER } from './config/backendConfig';
 import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -106,14 +104,14 @@ const AnimatedRoutes = () => {
     return savedClients ? JSON.parse(savedClients) : [];
   });
   const [serves, setServes] = useState<ServeAttemptData[]>(() => {
+    // Load a limited set from localStorage for initial render
     const savedServes = localStorage.getItem("serve-tracker-serves");
-    console.log("Initial load from localStorage serve-tracker-serves:", 
-      savedServes ? JSON.parse(savedServes).length : 0, "entries");
-    return savedServes ? JSON.parse(savedServes) : [];
+    const allServes = savedServes ? JSON.parse(savedServes) : [];
+    console.log("Initial load from localStorage:", allServes.length, "serves (limiting to 20 for performance)");
+    return allServes.slice(0, 20); // Limit initial load
   });
   const [isInitialSync, setIsInitialSync] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [dataLoaded, setDataLoaded] = useState(false);
   const [showAppwriteAlert, setShowAppwriteAlert] = useState(false);
 
   useEffect(() => {
@@ -144,10 +142,12 @@ const AnimatedRoutes = () => {
         localStorage.setItem("serve-tracker-clients", JSON.stringify(appwriteClients));
       }
       if (appwriteServes.length > 0) {
-        setServes(appwriteServes);
-        localStorage.setItem("serve-tracker-serves", JSON.stringify(appwriteServes));
+        // Limit the number of serves in memory
+        const limitedServes = appwriteServes.slice(0, 50);
+        setServes(limitedServes);
+        localStorage.setItem("serve-tracker-serves", JSON.stringify(appwriteServes)); // Save all to localStorage
+        console.log(`Loaded ${appwriteServes.length} serves from Appwrite, keeping ${limitedServes.length} in memory`);
       }
-      setDataLoaded(true);
     } catch (error) {
       console.error("Error loading data from Appwrite:", error);
     } finally {
@@ -173,15 +173,18 @@ const AnimatedRoutes = () => {
     performInitialSync();
   }, [isInitialSync]);
 
+  // Remove the aggressive 5-second sync interval
+  // Only sync when explicitly requested or on real-time updates
   useEffect(() => {
+    // Much longer sync interval to prevent performance issues
     const syncInterval = setInterval(async () => {
       try {
-        console.log("Running periodic sync with Appwrite...");
+        console.log("Running periodic sync with Appwrite (every 5 minutes)...");
         await loadAppwriteData();
       } catch (error) {
         console.error("Error during periodic sync with Appwrite:", error);
       }
-    }, 5000);
+    }, 300000); // 5 minutes instead of 5 seconds
     return () => {
       clearInterval(syncInterval);
     };
@@ -193,8 +196,10 @@ const AnimatedRoutes = () => {
   }, [clients]);
 
   useEffect(() => {
-    localStorage.setItem("serve-tracker-serves", JSON.stringify(serves));
-    console.log("Updated localStorage serve-tracker-serves:", serves.length, "entries");
+    // Only update localStorage with the limited serves in memory
+    // Full data is handled by the optimized hooks
+    localStorage.setItem("serve-tracker-serves-limited", JSON.stringify(serves));
+    console.log("Updated localStorage serve-tracker-serves-limited:", serves.length, "entries");
   }, [serves]);
 
   const createClient = async (client) => {
@@ -411,8 +416,8 @@ const AnimatedRoutes = () => {
         timestamp: new Date(newServe.timestamp || new Date()),
       };
 
-      // Update local state
-      setServes((prev) => [...prev, formattedServe]);
+      // Update local state (only add to limited set)
+      setServes((prev) => [formattedServe, ...prev.slice(0, 19)]); // Keep only 20 in memory
 
       // Prepare and send email notification
       console.log("Preparing email notification for serve attempt");
@@ -636,7 +641,7 @@ const AnimatedRoutes = () => {
   };
 
   return (
-    <>
+    <ErrorBoundary>
       {showAppwriteAlert && (
         <Alert className="m-4">
           <AlertTitle>Connection Warning</AlertTitle>
@@ -693,14 +698,16 @@ const AnimatedRoutes = () => {
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
-    </>
+    </ErrorBoundary>
   );
 };
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AnimatedRoutes />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AnimatedRoutes />
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

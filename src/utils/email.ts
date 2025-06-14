@@ -1,3 +1,4 @@
+
 import { ServeAttemptData } from "@/components/ServeAttempt";
 
 // Base email interface
@@ -9,6 +10,15 @@ export interface EmailData {
   imageData?: string; // Base64 encoded image data
   imageFormat?: string; // Format of the image (jpeg, png, etc.)
 }
+
+// Placeholder sendEmail function - implement based on your email service
+export const sendEmail = async (emailData: EmailData): Promise<{ success: boolean; message: string }> => {
+  console.log("Email functionality not yet implemented:", emailData);
+  return { 
+    success: false, 
+    message: "Email functionality needs to be implemented with your preferred email service" 
+  };
+};
 
 // Create an email for serve attempt notifications
 export const createServeEmailBody = (

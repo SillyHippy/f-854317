@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -73,18 +74,22 @@ const Dashboard: React.FC<DashboardProps> = ({ clients }) => {
           const todayServes = normalizedServes.filter(serve => {
             if (!serve.timestamp) return false;
             
-            let serveDate;
-            if (typeof serve.timestamp === 'string') {
-              serveDate = new Date(serve.timestamp);
-            } else if (serve.timestamp instanceof Date) {
-              serveDate = serve.timestamp;
-            } else if (serve.timestamp._type === 'Date' && serve.timestamp.value) {
-              serveDate = new Date(serve.timestamp.value.iso || serve.timestamp.value);
-            } else {
+            try {
+              let serveDate: Date;
+              if (typeof serve.timestamp === 'string') {
+                serveDate = new Date(serve.timestamp);
+              } else if (serve.timestamp instanceof Date) {
+                serveDate = serve.timestamp;
+              } else {
+                // Handle any other timestamp format by converting to string first
+                serveDate = new Date(String(serve.timestamp));
+              }
+              
+              return serveDate.toLocaleDateString() === todayStr;
+            } catch (error) {
+              console.warn("Dashboard: Error parsing timestamp:", serve.timestamp, error);
               return false;
             }
-            
-            return serveDate.toLocaleDateString() === todayStr;
           });
           
           setTodayCount(todayServes.length);
@@ -126,7 +131,7 @@ const Dashboard: React.FC<DashboardProps> = ({ clients }) => {
       toast({
         title: "Serve updated",
         description: "Service attempt has been updated successfully",
-        variant: "success",
+        variant: "default",
       });
       
       return true;

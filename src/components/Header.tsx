@@ -112,7 +112,7 @@ export function Header() {
               </Link>
             </div>
             <Button 
-              variant="primary" 
+              variant="default" 
               size="sm" 
               onClick={() => navigate('/new-serve')}
               className="flex items-center rounded-full"

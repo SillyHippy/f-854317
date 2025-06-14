@@ -63,11 +63,6 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
         throw new Error("Client ID is required.");
       }
 
-      if (!serveData.imageData) {
-        console.error("Image data is missing.");
-        throw new Error("Image data is required.");
-      }
-
       if (!serveData.caseName) {
         console.warn("Missing case name, setting to 'Unknown Case'");
         serveData.caseName = "Unknown Case";

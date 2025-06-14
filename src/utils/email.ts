@@ -1,5 +1,5 @@
-
 import { ServeAttemptData } from "@/components/ServeAttempt";
+import { extractBase64 } from "@/utils/imageUtils";
 
 // Base email interface
 export interface EmailData {
@@ -142,7 +142,13 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
     }
 
     // Create the request payload
-    const payload = {
+    const payload: {
+      to: string[];
+      subject: string;
+      html: string;
+      text?: string;
+      attachments?: any[];
+    } = {
       to: recipients,
       subject: emailData.subject,
       html: emailData.html || emailData.body,
@@ -154,7 +160,7 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
       payload['attachments'] = [
         {
           filename: 'serve_evidence.jpeg',
-          content: emailData.imageData,
+          content: extractBase64(emailData.imageData),
           encoding: 'base64'
         }
       ];

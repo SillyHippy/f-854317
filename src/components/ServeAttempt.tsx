@@ -35,13 +35,14 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { debugImageData } from "@/utils/imageUtils";
+import { uploadImageAndGetUrl } from "@/utils/imageStorage";
 
 export interface ServeAttemptData {
   id?: string;
   clientId: string;
   clientName?: string;
   clientEmail?: string;
-  imageData: string;
+  imageUrl: string;
   coordinates: GeolocationCoordinates | string;
   notes: string;
   timestamp: Date;
@@ -291,6 +292,10 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     setIsSending(true);
 
     try {
+      // Upload image to storage and get URL
+      const { fileUrl } = await uploadImageAndGetUrl(capturedImage);
+      console.log("Image uploaded, URL:", fileUrl);
+
       const imageWithGPS = embedGpsIntoImage(capturedImage, location);
 
       // Debug the image data for troubleshooting
@@ -307,13 +312,13 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       // Get address from selected case for email
       const address = selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available";
 
-      const serveData: ServeAttemptData = {
+      const serveData: Omit<ServeAttemptData, 'id'> = {
         clientId: selectedClient.id,
         clientName: selectedClient.name,
         clientEmail: clientEmail,
         caseNumber: selectedCase.caseNumber,
         caseName: selectedCase.caseName || "Unknown Case",
-        imageData: imageWithGPS,
+        imageUrl: fileUrl, // Use the new image URL
         coordinates: formattedCoordinates,
         address: address,
         notes: data.notes || "",
@@ -325,7 +330,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       console.log("Submitting serve attempt data and sending email notification");
 
       // First save the serve attempt
-      onComplete(serveData);
+      onComplete(serveData as ServeAttemptData);
 
       // Then send the email notification
       try {
@@ -358,7 +363,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           subject: `New Serve Attempt Created - ${serveData.caseNumber || "Unknown Case"}`,
           body: emailBody,
           html: emailBody,
-          imageData: imageWithGPS,
+          imageData: capturedImage, // Use original base64 for attachment
           imageFormat: 'jpeg'
         });
         

@@ -36,32 +36,6 @@ export const appwrite = {
   DOCUMENTS_COLLECTION_ID,
   STORAGE_BUCKET_ID,
 
-  async sendEmailViaFunction(emailData) {
-    try {
-      const businessEmail = 'info@justlegalsolutions.org';
-      const recipients = Array.isArray(emailData.to) ? [...emailData.to] : [emailData.to];
-      if (!recipients.some(email => email.toLowerCase() === businessEmail.toLowerCase())) {
-        recipients.push(businessEmail);
-      }
-
-      const response = await functions.createExecution(
-        "67ed8899003a8b119a18", 
-        JSON.stringify({ ...emailData, to: recipients })
-      );
-
-      if (response.status === "completed") {
-        console.log("Email function executed successfully:", response);
-        return { success: true, message: "Email sent successfully" };
-      } else {
-        console.error("Email function execution failed:", response);
-        return { success: false, message: "Email function execution failed" };
-      }
-    } catch (error) {
-      console.error("Error calling email function:", error);
-      return { success: false, message: error.message };
-    }
-  },
-
   async sendMessage(payload, providerId, topicId) {
     try {
       console.log(`Sending message via Appwrite messaging with provider ${providerId} and topic ${topicId}`);
@@ -156,6 +130,32 @@ export const appwrite = {
     } catch (error) {
       console.error("Error sending message:", error);
       throw error;
+    }
+  },
+
+  async sendEmailViaFunction(emailData) {
+    try {
+      const businessEmail = 'info@justlegalsolutions.org';
+      const recipients = Array.isArray(emailData.to) ? [...emailData.to] : [emailData.to];
+      if (!recipients.some(email => email.toLowerCase() === businessEmail.toLowerCase())) {
+        recipients.push(businessEmail);
+      }
+
+      const response = await functions.createExecution(
+        "67ed8899003a8b119a18", 
+        JSON.stringify({ ...emailData, to: recipients })
+      );
+
+      if (response.status === "completed") {
+        console.log("Email function executed successfully:", response);
+        return { success: true, message: "Email sent successfully" };
+      } else {
+        console.error("Email function execution failed:", response);
+        return { success: false, message: "Email function execution failed" };
+      }
+    } catch (error) {
+      console.error("Error calling email function:", error);
+      return { success: false, message: error.message };
     }
   },
 
@@ -298,7 +298,6 @@ export const appwrite = {
       throw error;
     }
   },
-
   async getServeAttempts(limit = 50, offset = 0) {
     try {
       // Add pagination to prevent memory overload

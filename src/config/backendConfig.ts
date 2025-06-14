@@ -11,13 +11,13 @@ export const ACTIVE_BACKEND = BACKEND_PROVIDER.APPWRITE;
 
 // Appwrite configuration
 export const APPWRITE_CONFIG = {
-  endpoint: import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1',
-  projectId: import.meta.env.VITE_APPWRITE_PROJECT_ID || '67ff9afd003750551953',
+  endpoint: import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1',
+  projectId: import.meta.env.VITE_APPWRITE_PROJECT_ID || '67ead974001245b7c6aa',
   databaseId: '67eae6fe0020c6721531',
   collections: {
     clients: '67eae70e000c042112c8',
     clientCases: '67eae98f0017c9503bee',
-    serveAttempts: '684c14fb002f6275b932',
+    serveAttempts: '67eae7ef0034c7ad35f6',
     clientDocuments: '67eaeaa900128f318514',
   },
   storageBucket: import.meta.env.VITE_APPWRITE_STORAGE_BUCKET_ID || '67eaeb7700322d74597e',

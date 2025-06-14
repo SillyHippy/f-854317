@@ -106,12 +106,8 @@ const AnimatedRoutes = () => {
     const savedClients = localStorage.getItem("serve-tracker-clients");
     return savedClients ? JSON.parse(savedClients) : [];
   });
-  const [serves, setServes] = useState<ServeAttemptData[]>(() => {
-    const savedServes = localStorage.getItem("serve-tracker-serves");
-    console.log("Initial load from localStorage serve-tracker-serves:", 
-      savedServes ? JSON.parse(savedServes).length : 0, "entries");
-    return savedServes ? JSON.parse(savedServes) : [];
-  });
+  
+  // Remove serves from state - we'll fetch them as needed per page
   const [isInitialSync, setIsInitialSync] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -139,14 +135,11 @@ const AnimatedRoutes = () => {
   const loadAppwriteData = async () => {
     try {
       setIsSyncing(true);
-      const { clients: appwriteClients, serves: appwriteServes } = await loadDataFromAppwrite();
+      // Only load clients - serves will be fetched per page as needed
+      const { clients: appwriteClients } = await loadDataFromAppwrite();
       if (appwriteClients.length > 0) {
         setClients(appwriteClients);
         localStorage.setItem("serve-tracker-clients", JSON.stringify(appwriteClients));
-      }
-      if (appwriteServes.length > 0) {
-        setServes(appwriteServes);
-        localStorage.setItem("serve-tracker-serves", JSON.stringify(appwriteServes));
       }
       setDataLoaded(true);
     } catch (error) {
@@ -172,44 +165,15 @@ const AnimatedRoutes = () => {
       }
     };
     performInitialSync();
-  }, [isInitialSync]);  useEffect(() => {
-    // Reduce sync frequency and add memory protection
-    const syncInterval = setInterval(async () => {
-      try {
-        // Check memory usage before syncing
-        if (shouldSkipSync()) {
-          console.warn("Skipping sync due to memory concerns");
-          return;
-        }
+  }, [isInitialSync]);
 
-        console.log("Running periodic sync with Appwrite...");
-        logMemoryStats(); // Log memory usage for debugging
-        
-        // Only sync if we don't have too much data in memory
-        const currentServes = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
-        if (currentServes.length > 1000) {
-          console.warn("Too many serves in memory, skipping sync to prevent memory issues");
-          return;
-        }
-        await loadAppwriteData();
-      } catch (error) {
-        console.error("Error during periodic sync with Appwrite:", error);
-      }
-    }, 30000); // Changed from 5 seconds to 30 seconds
-    return () => {
-      clearInterval(syncInterval);
-    };
-  }, []);
+  // Remove the periodic sync that was causing memory issues
+  // Data will be fetched fresh when needed
 
   useEffect(() => {
     localStorage.setItem("serve-tracker-clients", JSON.stringify(clients));
     console.log("Updated localStorage serve-tracker-clients:", clients.length, "clients");
   }, [clients]);
-
-  useEffect(() => {
-    localStorage.setItem("serve-tracker-serves", JSON.stringify(serves));
-    console.log("Updated localStorage serve-tracker-serves:", serves.length, "entries");
-  }, [serves]);
 
   const createClient = async (client) => {
     try {
@@ -348,7 +312,6 @@ const AnimatedRoutes = () => {
 
       // Update local state
       setClients(prev => prev.filter(client => client.id !== clientId));
-      setServes(prev => prev.filter(serve => serve.clientId !== clientId));
 
       toast({
         title: "Client deleted",
@@ -377,23 +340,13 @@ const AnimatedRoutes = () => {
       const newServe = await appwrite.createServeAttempt(serveData);
       console.log("Serve attempt saved successfully:", newServe.id);
 
-      // Format the serve data for state update
-      const formattedServe = {
-        id: newServe.id || newServe.$id,
-        ...newServe,
-        timestamp: new Date(newServe.timestamp || new Date()),
-      };
-
-      // Update local state
-      setServes((prev) => [...prev, formattedServe]);
-
       // Prepare and send email notification
       console.log("Preparing email notification for serve attempt");
       const emailBody = createServeEmailBody(
         serveData.clientName || "Unknown Client",
         serveData.address || "No address provided",
         serveData.notes || "No notes provided",
-        new Date(formattedServe.timestamp),
+        new Date(),
         serveData.coordinates,
         serveData.attemptNumber || 1,
         serveData.caseNumber || "Unknown Case"
@@ -403,7 +356,7 @@ const AnimatedRoutes = () => {
         to: serveData.clientEmail || "info@justlegalsolutions.org",
         subject: `New Serve Attempt Created - ${serveData.caseNumber || "Unknown Case"}`,
         html: emailBody,
-        imageData: serveData.imageData // Include image data in the email payload
+        imageData: serveData.imageData
       };
 
       console.log("Sending email notification via Appwrite function");
@@ -435,14 +388,12 @@ const AnimatedRoutes = () => {
 
   const updateServe = async (serveData) => {
     try {
-      // Create a proper payload with converted timestamp
       const timestamp = serveData.timestamp ? 
         (serveData.timestamp instanceof Date ? 
           serveData.timestamp : 
           new Date(serveData.timestamp)) : 
         new Date();
       
-      // Prepare the payload without relying on timestamp methods
       const payload = {
         client_id: serveData.clientId,
         case_number: serveData.caseNumber || null,
@@ -456,17 +407,6 @@ const AnimatedRoutes = () => {
       };
 
       const updatedServe = await appwrite.updateServeAttempt(serveData.id, payload);
-
-      // Ensure the `id` field is preserved
-      const formattedServe = {
-        id: serveData.id,
-        ...updatedServe,
-        timestamp: timestamp
-      };
-
-      setServes((prev) =>
-        prev.map((serve) => (serve.id === serveData.id ? formattedServe : serve))
-      );
 
       toast({
         title: "Serve updated",
@@ -489,75 +429,9 @@ const AnimatedRoutes = () => {
   const deleteServe = async (serveId: string): Promise<boolean> => {
     try {
       console.log("Attempting to delete serve with ID:", serveId);
-      console.log("Current serves in state:", serves.map(s => ({ id: s.id })));
       
-      // Try to find the serve
-      const serve = serves.find((s) => s.id === serveId);
-      
-      if (!serve) {
-        console.error(`Serve with ID ${serveId} not found in current state`);
-        
-        // Try fetching the serve directly from Appwrite instead
-        try {
-          console.log("Attempting to delete serve directly from Appwrite");
-          await appwrite.deleteServeAttempt(serveId);
-          setServes((prev) => prev.filter((s) => s.id !== serveId));
-          
-          toast({
-            title: "Serve deleted",
-            description: "Service attempt has been removed",
-            variant: "success",
-          });
-          
-          return true; // Exit early after successful deletion
-        } catch (directError) {
-          console.error("Error deleting serve directly:", directError);
-          throw new Error(`Serve with ID ${serveId} not found and direct deletion failed`);
-        }
-      }
-
-      console.log("Found serve to delete:", serve);
+      // Delete directly from Appwrite
       await appwrite.deleteServeAttempt(serveId);
-
-      setServes((prev) => prev.filter((s) => s.id !== serveId));
-
-      // Send email notification
-      try {
-        const emailBody = createDeleteNotificationEmail(
-          serve.clientName || "Unknown Client",
-          serve.caseNumber || "Unknown Case",
-          new Date(serve.timestamp || new Date()),
-          "Serve attempt was deleted by the admin."
-        );
-
-        // Use default email if client email is missing
-        const recipient = serve.clientEmail || "info@justlegalsolutions.org";
-        const recipients = [recipient];
-        
-        // Add the business email if it's not already included
-        if (recipient !== "info@justlegalsolutions.org") {
-          recipients.push("info@justlegalsolutions.org");
-        }
-
-        // Prepare the email data for deletion notification
-        const emailData = {
-          to: recipients,
-          subject: `Serve Attempt Deleted - ${serve.caseNumber || "Unknown Case"}`,
-          html: emailBody,
-        };
-
-        console.log("Sending deletion notification via Appwrite function");
-        const emailResult = await appwrite.sendEmailViaFunction(emailData);
-
-        if (emailResult.success) {
-          console.log("Email sent successfully:", emailResult.message);
-        } else {
-          console.error("Failed to send email:", emailResult.message);
-        }
-      } catch (emailError) {
-        console.error("Error sending deletion notification email:", emailError);
-        // Continue with the deletion even if email fails
-      }
 
       toast({
         title: "Serve deleted",
@@ -575,11 +449,6 @@ const AnimatedRoutes = () => {
       });
       return false;
     }
-  };
-
-  const formatServesForDisplay = (serves) => {
-    const normalizedServes = normalizeServeDataArray(serves);
-    return normalizedServes;
   };
 
   return (
@@ -609,9 +478,9 @@ const AnimatedRoutes = () => {
             <Layout />
           </ProtectedRoute>
         }>
-          <Route path="/" element={<Dashboard clients={clients} serves={serves} />} />
+          <Route path="/" element={<Dashboard clients={clients} serves={[]} />} />
           <Route path="/dashboard" element={
-            <Dashboard clients={clients} serves={serves} />
+            <Dashboard clients={clients} serves={[]} />
           } />
           <Route path="/new-serve" element={
             <NewServe clients={clients} addServe={createServe} />
@@ -629,7 +498,7 @@ const AnimatedRoutes = () => {
           } />
           <Route path="/history" element={
             <History 
-              serves={formatServesForDisplay(serves)} 
+              serves={[]} 
               clients={clients}
               deleteServe={deleteServe}
               updateServe={updateServe}

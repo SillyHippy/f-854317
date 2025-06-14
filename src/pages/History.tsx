@@ -1,16 +1,24 @@
+
 import React, { useState, useEffect } from "react";
 import ServeHistory from "@/components/ServeHistory";
 import MemoryMonitor from "@/components/MemoryMonitor";
 import { ClientData } from "@/components/ClientForm";
 import { ServeAttemptData } from "@/components/ServeAttempt";
 import { Button } from "@/components/ui/button";
-import { History as HistoryIcon, RefreshCw } from "lucide-react";
+import { History as HistoryIcon, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import EditServeDialog from "@/components/EditServeDialog";
 import { appwrite } from "@/lib/appwrite";
-import { repairServeAttempts } from "@/utils/repairUtils";
 import { normalizeServeDataArray, addClientNamesToServes } from "@/utils/dataNormalization";
 import { useNavigate } from "react-router-dom";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface HistoryProps {
   serves: ServeAttemptData[];
@@ -19,108 +27,62 @@ interface HistoryProps {
   updateServe: (serve: ServeAttemptData) => Promise<boolean>;
 }
 
+const SERVES_PER_PAGE = 20; // Limit to 20 serves per page to prevent memory issues
+
 const History: React.FC<HistoryProps> = ({ 
-  serves, 
   clients, 
   deleteServe,
   updateServe
 }) => {
   const navigate = useNavigate();
-  console.log("History page received serves:", serves);
-  console.log("History page received clients:", clients);
-
   const [isSyncing, setIsSyncing] = useState(false);
   const [selectedServe, setSelectedServe] = useState<ServeAttemptData | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [localServes, setLocalServes] = useState<ServeAttemptData[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalServes, setTotalServes] = useState(0);
   const { toast } = useToast();
 
-  // Effect to use serves prop if available, otherwise fetch from local storage or directly from Appwrite
-  useEffect(() => {
-    if (serves && serves.length > 0) {
-      console.log("Using serves from props:", serves);
-      const validatedServes = validateServes(serves);
-      
-      // Enhance serve data with client names
-      const enhancedServes = addClientNamesToServes(validatedServes, clients);
-      
-      // Sort serves by timestamp in descending order (newest first)
-      const sortedServes = sortServesByDate(enhancedServes);
-      setLocalServes(sortedServes);
-    } else {
-      console.log("No serves from props, fetching from local storage or Appwrite");
-      fetchServeHistory();
-    }
-  }, [serves, clients]);
+  // Calculate pagination
+  const totalPages = Math.ceil(totalServes / SERVES_PER_PAGE);
+  const offset = (currentPage - 1) * SERVES_PER_PAGE;
 
-  // Helper function to sort serves by date (newest first)
-  const sortServesByDate = (servesToSort: ServeAttemptData[]): ServeAttemptData[] => {
-    return [...servesToSort].sort((a, b) => {
-      const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return dateB - dateA; // Descending order (newest first)
-    });
-  };
+  // Fetch paginated serves
+  useEffect(() => {
+    fetchServeHistory();
+  }, [currentPage, clients]);
 
   const fetchServeHistory = async () => {
     try {
-      console.log("Fetching serve history...");
+      console.log(`Fetching serves for page ${currentPage}...`);
       setIsSyncing(true);
       
-      // First try to get data directly from Appwrite with pagination
-      try {
-        console.log("Fetching serve attempts directly from Appwrite...");
-        // Limit to recent 100 serves to prevent memory overload
-        const appwriteServes = await appwrite.getServeAttempts(100, 0);
-        console.log("Appwrite serve attempts:", appwriteServes?.length || 0);
+      // Fetch paginated serves from Appwrite
+      const appwriteServes = await appwrite.getServeAttempts(SERVES_PER_PAGE, offset);
+      console.log("Fetched serves:", appwriteServes?.length || 0);
+      
+      if (appwriteServes && appwriteServes.length > 0) {
+        const validatedServes = validateServes(appwriteServes);
+        const enhancedServes = addClientNamesToServes(validatedServes, clients);
+        const sortedServes = sortServesByDate(enhancedServes);
+        setLocalServes(sortedServes);
         
-        if (appwriteServes && appwriteServes.length > 0) {
-          // The getServeAttempts function should already normalize the data
-          const validatedServes = validateServes(appwriteServes);
-          
-          // Add client names from clients array
-          const enhancedServes = addClientNamesToServes(validatedServes, clients);
-          
-          // Sort serves by timestamp (newest first)
-          const sortedServes = sortServesByDate(enhancedServes);
-          setLocalServes(sortedServes);
-          
-          // Also update local storage for offline use, but limit storage
-          const limitedForStorage = sortedServes.slice(0, 50); // Only store 50 most recent
-          localStorage.setItem("serve-tracker-serves", JSON.stringify(limitedForStorage));
-          console.log("Updated local storage with limited Appwrite data");
-          
-          setIsSyncing(false);
-          return;
+        // Get total count for pagination (only fetch once)
+        if (currentPage === 1) {
+          try {
+            const totalCount = await appwrite.getTotalServeAttemptsCount();
+            setTotalServes(totalCount);
+          } catch (error) {
+            console.error("Error getting total count:", error);
+            setTotalServes(appwriteServes.length); // Fallback
+          }
         }
-      } catch (appwriteError) {
-        console.error("Error fetching from Appwrite directly:", appwriteError);
-      }
-      
-      // If Appwrite direct fetch fails, try local storage
-      console.log("Falling back to local storage...");
-      let serveAttempts = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
-      console.log("Serve attempts from local storage:", serveAttempts);
-
-      // Sync with Appwrite if local storage is empty
-      if (!serveAttempts || serveAttempts.length === 0) {
-        console.warn("No serve attempts found in local storage. Syncing with Appwrite...");
-        const synced = await appwrite.syncAppwriteServesToLocal();
-        if (synced) {
-          serveAttempts = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
-          console.log("Serve attempts after syncing with Appwrite:", serveAttempts);
+      } else {
+        setLocalServes([]);
+        if (currentPage === 1) {
+          setTotalServes(0);
         }
       }
-
-      // Validate and filter the serve attempts
-      const validatedServes = validateServes(serveAttempts);
-      
-      // Enhance with client names
-      const enhancedServes = addClientNamesToServes(validatedServes, clients);
-      
-      // Sort by timestamp (newest first)
-      const sortedServes = sortServesByDate(enhancedServes);
-      setLocalServes(sortedServes);
     } catch (error) {
       console.error("Error fetching serve history:", error);
       toast({
@@ -133,155 +95,21 @@ const History: React.FC<HistoryProps> = ({
     }
   };
 
+  const sortServesByDate = (servesToSort: ServeAttemptData[]): ServeAttemptData[] => {
+    return [...servesToSort].sort((a, b) => {
+      const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return dateB - dateA; // Descending order (newest first)
+    });
+  };
+
   const handleRefresh = async () => {
     if (isSyncing) return;
-
-    setIsSyncing(true);
-    try {
-      // Check if the sync function exists before calling it
-      if (typeof appwrite.syncAppwriteServesToLocal === 'function') {
-        const synced = await appwrite.syncAppwriteServesToLocal();
-        
-        if (synced) {
-          // After syncing, reload data from local storage
-          const serveAttempts = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
-          const validatedServes = validateServes(serveAttempts);
-          setLocalServes(validatedServes);
-          
-          toast({
-            title: "History Refreshed",
-            description: "Serve history has been updated with the latest data."
-          });
-        } else {
-          toast({
-            title: "Refresh Failed",
-            description: "Could not refresh serve history. Please try again.",
-            variant: "destructive"
-          });
-        }
-      } else {
-        console.warn("syncAppwriteServesToLocal function not found, falling back to manual refresh");
-        // Fallback to a manual window refresh
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error("Error refreshing history:", error);
-      toast({
-        title: "Error",
-        description: "An error occurred while refreshing serve history.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleRepairData = async () => {
-    if (isSyncing) return;
-
-    setIsSyncing(true);
-    try {
-      toast({
-        title: "Repairing Serve Data",
-        description: "Attempting to fix any data issues...",
-      });
-
-      const result = await repairServeAttempts();
-      
-      toast({
-        title: "Repair Complete",
-        description: result.message,
-        variant: result.fixed > 0 ? "default" : "warning"
-      });
-
-      // Refresh data
-      await handleRefresh();
-    } catch (error) {
-      console.error("Error repairing data:", error);
-      toast({
-        title: "Repair Failed",
-        description: "Could not repair serve data. See console for details.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const fixUnknownClientIds = async () => {
-    if (isSyncing) return;
-
-    setIsSyncing(true);
-    try {
-      console.log("Fixing serve attempts with unknown client IDs...");
-      
-      toast({
-        title: "Fixing Client IDs",
-        description: "Attempting to fix unknown client IDs...",
-      });
-      
-      if (clients.length === 0) {
-        toast({
-          title: "No Clients Found",
-          description: "No clients available to fix serve attempts",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Get all serve attempts from Appwrite
-      const serveAttempts = await appwrite.getServeAttempts();
-      console.log(`Found ${serveAttempts.length} serve attempts to check`);
-      
-      let fixedCount = 0;
-      for (const serve of serveAttempts) {
-        if (!serve.client_id || serve.client_id === "unknown") {
-          console.log(`Fixing serve attempt ${serve.$id} with unknown client ID`);
-          
-          // Use the first client as a default
-          const defaultClientId = clients[0].id;
-          
-          try {
-            await appwrite.databases.updateDocument(
-              appwrite.DATABASE_ID,
-              appwrite.SERVE_ATTEMPTS_COLLECTION_ID,
-              serve.$id,
-              { client_id: defaultClientId }
-            );
-            
-            fixedCount++;
-          } catch (error) {
-            console.error(`Failed to fix serve attempt ${serve.$id}:`, error);
-          }
-        }
-      }
-      
-      if (fixedCount > 0) {
-        toast({
-          title: "Fixed Serve Attempts",
-          description: `Fixed ${fixedCount} serve attempts with unknown client IDs`,
-          variant: "default"
-        });
-        
-        // Refresh the data
-        await handleRefresh();
-      } else {
-        toast({
-          title: "No Fixes Needed",
-          description: "No serve attempts with unknown client IDs found",
-          variant: "default"
-        });
-      }
-    } catch (error) {
-      console.error("Error fixing unknown client IDs:", error);
-      toast({
-        title: "Fix Failed",
-        description: `Error: ${error.message || "Unknown error"}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsSyncing(false);
-    }
+    await fetchServeHistory();
+    toast({
+      title: "History Refreshed",
+      description: "Serve history has been updated with the latest data."
+    });
   };
 
   const handleEditServe = (serve: ServeAttemptData) => {
@@ -299,8 +127,8 @@ const History: React.FC<HistoryProps> = ({
           variant: "default"
         });
         
-        // Update local serves after deletion
-        setLocalServes(prev => prev.filter(serve => serve.id !== id));
+        // Refresh current page
+        await fetchServeHistory();
       } else {
         throw new Error("Failed to delete serve attempt");
       }
@@ -321,10 +149,9 @@ const History: React.FC<HistoryProps> = ({
       return [];
     }
 
-    // Normalize the data to ensure consistency
     const normalizedServes = normalizeServeDataArray(serves);
-
     const uniqueServes = new Map();
+    
     normalizedServes.forEach((serve) => {
       if (!serve.id) {
         console.warn("Serve attempt missing ID:", serve);
@@ -344,15 +171,11 @@ const History: React.FC<HistoryProps> = ({
     return validated;
   };
 
-  // Direct fetch from Appwrite if no serves are loaded yet
-  useEffect(() => {
-    if (localServes.length === 0 && !isSyncing) {
-      console.log("No serves found in local state, fetching directly from Appwrite");
-      handleRefresh();
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
-  }, [localServes.length, isSyncing]);
-
-  console.log("Serves to display:", localServes);
+  };
 
   return (
     <div className="page-container">
@@ -380,11 +203,21 @@ const History: React.FC<HistoryProps> = ({
 
       <div className="mb-8">
         <p className="text-muted-foreground">
-          View your serve history and outcomes
+          View your serve history and outcomes (Page {currentPage} of {totalPages}, Total: {totalServes})
         </p>
       </div>
 
-      {localServes.length === 0 ? (
+      {isSyncing ? (
+        <div className="rounded-lg border border-dashed p-12 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+          </div>
+          <h3 className="mb-2 text-xl font-semibold">Loading serve history...</h3>
+          <p className="text-muted-foreground">
+            Please wait while we fetch your data
+          </p>
+        </div>
+      ) : localServes.length === 0 ? (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <HistoryIcon className="h-6 w-6 text-primary" />
@@ -393,17 +226,79 @@ const History: React.FC<HistoryProps> = ({
           <p className="mb-6 text-muted-foreground">
             Create your first serve attempt to see your history here
           </p>
-          <Button onClick={() => window.location.href = "/new-serve"}>
+          <Button onClick={() => navigate("/new-serve")}>
             Create Serve Attempt
           </Button>
         </div>
       ) : (
-        <ServeHistory 
-          serves={localServes} 
-          clients={clients} 
-          onDelete={handleDelete}
-          onEdit={handleEditServe} 
-        />
+        <>
+          <ServeHistory 
+            serves={localServes} 
+            clients={clients} 
+            onDelete={handleDelete}
+            onEdit={handleEditServe} 
+          />
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) handlePageChange(currentPage - 1);
+                      }}
+                      className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  
+                  {/* Show page numbers */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    
+                    return (
+                      <PaginationItem key={pageNum}>
+                        <PaginationLink
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handlePageChange(pageNum);
+                          }}
+                          isActive={currentPage === pageNum}
+                        >
+                          {pageNum}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  
+                  <PaginationItem>
+                    <PaginationNext 
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages) handlePageChange(currentPage + 1);
+                      }}
+                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+        </>
       )}
 
       {selectedServe && (

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -35,119 +34,71 @@ interface DashboardProps {
   serves: ServeAttemptData[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
+const Dashboard: React.FC<DashboardProps> = ({ clients }) => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const [localServes, setLocalServes] = useState<ServeAttemptData[]>([]);
+  const [recentServes, setRecentServes] = useState<ServeAttemptData[]>([]);
   const [editingServe, setEditingServe] = useState<ServeAttemptData | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [recentServes, setRecentServes] = useState<ServeAttemptData[]>([]);
   const [completedCount, setCompletedCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
-  // Fetch serves directly from Appwrite on component mount
+
+  // Fetch only recent serves for dashboard (limit to 6 to prevent memory issues)
   useEffect(() => {
-    const fetchServes = async () => {
+    const fetchRecentServes = async () => {
       try {
         setIsLoading(true);
-        console.log("Dashboard: Fetching recent serves from Appwrite");
-        // Only fetch recent serves for dashboard to prevent memory issues
-        const appwriteServes = await appwrite.getServeAttempts(50, 0); // Limit to 50 most recent
+        console.log("Dashboard: Fetching recent serves from Appwrite (limited to 6)");
+        
+        // Only fetch 6 most recent serves for dashboard
+        const appwriteServes = await appwrite.getServeAttempts(6, 0);
         console.log("Dashboard: Fetched serves from Appwrite:", appwriteServes?.length || 0);
         
         if (appwriteServes && appwriteServes.length > 0) {
           const normalizedServes = normalizeServeDataArray(appwriteServes);
           console.log("Dashboard: Normalized serves:", normalizedServes.length);
-          setLocalServes(normalizedServes);
-        } else if (serves && serves.length > 0) {
-          console.log("Dashboard: Using serves from props:", serves.length);
-          // Limit props serves to prevent memory issues
-          const limitedServes = serves.slice(0, 50);
-          setLocalServes(limitedServes);
+          setRecentServes(normalizedServes);
+          
+          // Calculate stats from recent serves only
+          const completed = normalizedServes.filter(serve => serve.status === "completed").length;
+          const pending = normalizedServes.filter(serve => serve.status === "failed").length;
+          setCompletedCount(completed);
+          setPendingCount(pending);
+          
+          // Get today's serves from recent data
+          const today = new Date();
+          const todayStr = today.toLocaleDateString();
+          const todayServes = normalizedServes.filter(serve => {
+            if (!serve.timestamp) return false;
+            
+            let serveDate;
+            if (typeof serve.timestamp === 'string') {
+              serveDate = new Date(serve.timestamp);
+            } else if (serve.timestamp instanceof Date) {
+              serveDate = serve.timestamp;
+            } else if (serve.timestamp._type === 'Date' && serve.timestamp.value) {
+              serveDate = new Date(serve.timestamp.value.iso || serve.timestamp.value);
+            } else {
+              return false;
+            }
+            
+            return serveDate.toLocaleDateString() === todayStr;
+          });
+          
+          setTodayCount(todayServes.length);
+          console.log("Dashboard: Today's serves count:", todayServes.length);
         }
       } catch (error) {
         console.error("Dashboard: Error fetching serves from Appwrite:", error);
-        // Fall back to props if Appwrite fetch fails, but limit the data
-        if (serves && serves.length > 0) {
-          const limitedServes = serves.slice(0, 50);
-          setLocalServes(limitedServes);
-        }
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchServes();
+    fetchRecentServes();
   }, []);
-
-  // Process serves data whenever localServes changes
-  useEffect(() => {
-    if (!localServes.length) return;
-    
-    console.log("Dashboard: Processing serves data:", localServes.length);
-    
-    // Calculate completed and pending counts
-    const completed = localServes.filter(serve => serve.status === "completed").length;
-    const pending = localServes.filter(serve => serve.status === "failed").length;
-    setCompletedCount(completed);
-    setPendingCount(pending);
-    
-    // Get today's serves
-    const today = new Date();
-    const todayStr = today.toLocaleDateString();
-    const todayServes = localServes.filter(serve => {
-      if (!serve.timestamp) return false;
-      
-      let serveDate;
-      if (typeof serve.timestamp === 'string') {
-        serveDate = new Date(serve.timestamp);
-      } else if (serve.timestamp instanceof Date) {
-        serveDate = serve.timestamp;
-      } else if (serve.timestamp._type === 'Date' && serve.timestamp.value) {
-        // Handle Appwrite Date object format
-        serveDate = new Date(serve.timestamp.value.iso || serve.timestamp.value);
-      } else {
-        return false;
-      }
-      
-      return serveDate.toLocaleDateString() === todayStr;
-    });
-    
-    setTodayCount(todayServes.length);
-    console.log("Dashboard: Today's serves count:", todayServes.length);
-    
-    // Get recent serves
-    const recent = [...localServes].sort((a, b) => {
-      let dateA, dateB;
-      
-      // Handle different timestamp formats
-      if (typeof a.timestamp === 'string') {
-        dateA = new Date(a.timestamp).getTime();
-      } else if (a.timestamp instanceof Date) {
-        dateA = a.timestamp.getTime();
-      } else if (a.timestamp && a.timestamp._type === 'Date' && a.timestamp.value) {
-        dateA = new Date(a.timestamp.value.iso || a.timestamp.value).getTime();
-      } else {
-        dateA = 0;
-      }
-      
-      if (typeof b.timestamp === 'string') {
-        dateB = new Date(b.timestamp).getTime();
-      } else if (b.timestamp instanceof Date) {
-        dateB = b.timestamp.getTime();
-      } else if (b.timestamp && b.timestamp._type === 'Date' && b.timestamp.value) {
-        dateB = new Date(b.timestamp.value.iso || b.timestamp.value).getTime();
-      } else {
-        dateB = 0;
-      }
-      
-      return dateB - dateA;
-    }).slice(0, 3);
-    
-    setRecentServes(recent);
-    console.log("Dashboard: Recent serves updated:", recent.length);
-  }, [localServes]);
 
   // Handle edit serve
   const handleEditServe = (serve: ServeAttemptData) => {
@@ -166,14 +117,11 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
       console.log("Dashboard: Successfully updated serve in Appwrite");
       
       // Update local state
-      setLocalServes(prevServes => 
+      setRecentServes(prevServes => 
         prevServes.map(serve => 
           serve.id === updatedServe.id ? updatedServe : serve
         )
       );
-      
-      // Force a sync to ensure all data is updated
-      await appwrite.syncAppwriteServesToLocal();
       
       toast({
         title: "Serve updated",
@@ -195,7 +143,8 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
     }
   };
 
-  return (    <div className={isMobile ? "" : "page-container"}>
+  return (
+    <div className={isMobile ? "" : "page-container"}>
       <MemoryMonitor />
       
       <div className={`mb-6 ${isMobile ? "text-center" : "text-center md:text-left"}`}>
@@ -254,8 +203,8 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
           <CardContent className="pt-6 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-muted-foreground text-sm font-medium">Serve Status</p>
-                <h2 className="text-3xl font-bold mt-1">{localServes.length}</h2>
+                <p className="text-muted-foreground text-sm font-medium">Recent Status</p>
+                <h2 className="text-3xl font-bold mt-1">{recentServes.length}</h2>
               </div>
               <div className="p-3 rounded-full bg-primary/10 text-primary">
                 <ClipboardList className="h-6 w-6" />
@@ -317,6 +266,7 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves }) => {
           )}
         </div>
 
+        
         <div className="space-y-4 md:space-y-6">
           <h2 className="text-lg md:text-xl font-semibold tracking-tight">Quick Actions</h2>
           

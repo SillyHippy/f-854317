@@ -1,3 +1,4 @@
+
 import React from "react";
 import { 
   Card, 
@@ -128,7 +129,7 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
           caseName: serve.caseName,
           caseNumber: serve.caseNumber,
           coordinates: serve.coordinates,
-          imageUrl: serve.imageUrl, // New property
+          formattedCoordinates: formatCoordinates(serve.coordinates),
           googleMapsLink,
           status: serve.status,
           timestamp: serve.timestamp,
@@ -163,14 +164,14 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
             
             <CardContent className="pb-2">
               <div className="space-y-2">
-                {serve.imageUrl && (
+                {serve.imageData && (
                   <div className="rounded-md overflow-hidden mb-3 border h-36">
                     <img 
-                      src={serve.imageUrl} 
+                      src={serve.imageData} 
                       alt="Serve attempt" 
                       className="w-full h-full object-cover" 
                       onError={(e) => {
-                        console.error("Image failed to load:", e.currentTarget.src);
+                        console.error("Image failed to load:", e);
                         e.currentTarget.src = "https://placehold.co/400x300?text=No+Image";
                       }}
                     />

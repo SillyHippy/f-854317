@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ServeAttempt, { ServeAttemptData } from "@/components/ServeAttempt";
@@ -32,9 +31,9 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
   const fetchAttemptCount = async (clientId: string, caseNumber: string) => {
     setIsLoading(true);
     try {
-      const serveAttempts = await appwrite.getServeAttempts();
+      const serveAttempts = await appwrite.getClientServeAttempts(clientId);
       const attemptsForCase = serveAttempts.filter(
-        (attempt) => attempt.client_id === clientId && attempt.case_number === caseNumber
+        (attempt) => attempt.case_number === caseNumber
       );
       setCaseAttempts(attemptsForCase.length);
     } catch (error) {
@@ -54,31 +53,18 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
 
     try {
       // Ensure all required fields are present
-      if (!serveData.clientId || serveData.clientId === "unknown") {
-        console.error("Invalid client ID detected:", serveData.clientId);
-        throw new Error("Client ID is required.");
+      if (!serveData.clientId || !serveData.imageData) {
+        throw new Error("Missing required fields: clientId or imageData.");
       }
-
-      if (!serveData.caseName) {
-        console.warn("Missing case name, setting to 'Unknown Case'");
-        serveData.caseName = "Unknown Case";
-      }
-
-      // Ensure coordinates are properly formatted as string
-      if (typeof serveData.coordinates !== 'string') {
-        console.warn("Coordinates not properly formatted, setting to null");
-        serveData.coordinates = null;
-      }
-
-      console.log("Final serve data being saved:", serveData);
 
       // Save the serve data
-      addServe(serveData);
+      const savedServe = await appwrite.createServeAttempt(serveData);
+      console.log("Serve attempt saved successfully:", savedServe);
 
       toast({
         title: "Serve recorded",
-        description: "Service attempt has been saved successfully",
-        variant: "default",
+        description: "Service attempt has been saved successfully.",
+        variant: "success",
       });
 
       navigate("/history");
@@ -86,7 +72,7 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
       console.error("Error saving serve attempt:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save serve attempt",
+        description: error instanceof Error ? error.message : "Failed to save serve attempt.",
         variant: "destructive",
       });
     }

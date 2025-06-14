@@ -1,21 +1,19 @@
 import { Client, Account, Databases, Storage, ID, Query, Teams, Functions } from 'appwrite';
 import { APPWRITE_CONFIG } from '@/config/backendConfig';
+import { createServeEmailBody } from "@/utils/email"; 
 
-// Initialize Appwrite client
 const client = new Client();
 
 client
   .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || APPWRITE_CONFIG.endpoint)
   .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || APPWRITE_CONFIG.projectId);
 
-// Initialize Appwrite services
 const account = new Account(client);
 const databases = new Databases(client);
 const storage = new Storage(client);
 const teams = new Teams(client);
 const functions = new Functions(client);
 
-// Database and collection IDs from config
 const DATABASE_ID = APPWRITE_CONFIG.databaseId;
 const CLIENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clients;
 const SERVE_ATTEMPTS_COLLECTION_ID = APPWRITE_CONFIG.collections.serveAttempts;
@@ -23,7 +21,6 @@ const CASES_COLLECTION_ID = APPWRITE_CONFIG.collections.clientCases;
 const DOCUMENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clientDocuments;
 const STORAGE_BUCKET_ID = APPWRITE_CONFIG.storageBucket;
 
-// Helper functions for CRUD operations
 export const appwrite = {
   client,
   account,
@@ -39,7 +36,6 @@ export const appwrite = {
   DOCUMENTS_COLLECTION_ID,
   STORAGE_BUCKET_ID,
 
-  // Add messaging functionality for SMTP integration
   async sendMessage(payload, providerId, topicId) {
     try {
       console.log(`Sending message via Appwrite messaging with provider ${providerId} and topic ${topicId}`);
@@ -49,13 +45,11 @@ export const appwrite = {
         hasImageData: !!payload.imageData,
       });
 
-      // Check if we have the necessary data
       if (!payload.subject || !payload.content || !payload.recipients) {
         throw new Error("Missing required fields for email: subject, content, or recipients");
       }
 
       try {
-        // Using Appwrite functions to send the email via the topic subscription
         const result = await functions.createExecution(
           "sendEmail",
           JSON.stringify({
@@ -63,15 +57,14 @@ export const appwrite = {
             html: payload.content,
             to: payload.recipients.split(", ")
           }),
-          false, // async execution
-          "", // no path
-          "POST", // method
-          {} // no headers
+          false, 
+          "", 
+          "POST", 
+          {} 
         );
         
         console.log("Email function execution result:", result);
         
-        // If execution was successfully created but we need to check for its status
         if (result.$id) {
           return { 
             success: true,
@@ -84,10 +77,8 @@ export const appwrite = {
       } catch (fnError) {
         console.error("Error executing email function:", fnError);
         
-        // Fallback to direct messaging API
         console.log("Falling back to direct messaging API call");
         
-        // If function execution fails, try direct API call
         const endpoint = `${client.config.endpoint}/messaging/topics/${topicId}/subscribers`;
         
         const headers = {
@@ -101,7 +92,6 @@ export const appwrite = {
           headers['X-Appwrite-JWT'] = client.config.jwt;
         }
         
-        // Create the message data
         const messageData = {
           userId: 'unique',
           providerType: 'smtp',
@@ -114,7 +104,6 @@ export const appwrite = {
           metadata: payload.metadata || {},
         };
         
-        // If we have an image, add it to the message
         if (payload.imageData) {
           messageData.content.attachments = [{
             content: payload.imageData,
@@ -123,7 +112,6 @@ export const appwrite = {
           }];
         }
         
-        // Make the API request
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: headers,
@@ -145,12 +133,36 @@ export const appwrite = {
     }
   },
 
-  // Add the setupRealtimeSubscription function
+  async sendEmailViaFunction(emailData) {
+    try {
+      const businessEmail = 'info@justlegalsolutions.org';
+      const recipients = Array.isArray(emailData.to) ? [...emailData.to] : [emailData.to];
+      if (!recipients.some(email => email.toLowerCase() === businessEmail.toLowerCase())) {
+        recipients.push(businessEmail);
+      }
+
+      const response = await functions.createExecution(
+        "67ed8899003a8b119a18", 
+        JSON.stringify({ ...emailData, to: recipients })
+      );
+
+      if (response.status === "completed") {
+        console.log("Email function executed successfully:", response);
+        return { success: true, message: "Email sent successfully" };
+      } else {
+        console.error("Email function execution failed:", response);
+        return { success: false, message: "Email function execution failed" };
+      }
+    } catch (error) {
+      console.error("Error calling email function:", error);
+      return { success: false, message: error.message };
+    }
+  },
+
   setupRealtimeSubscription(callback) {
     try {
       console.log("Setting up realtime subscription for Appwrite");
       
-      // Subscribe to all collections
       const unsubscribe = client.subscribe([
         `databases.${DATABASE_ID}.collections.${CLIENTS_COLLECTION_ID}.documents`,
         `databases.${DATABASE_ID}.collections.${SERVE_ATTEMPTS_COLLECTION_ID}.documents`,
@@ -163,16 +175,14 @@ export const appwrite = {
       return unsubscribe;
     } catch (error) {
       console.error("Error setting up Appwrite realtime subscription:", error);
-      return () => {}; // Return empty cleanup function
+      return () => {};
     }
   },
 
-  // Utility to check if Appwrite is properly configured
   isAppwriteConfigured() {
     return !!APPWRITE_CONFIG.projectId && !!APPWRITE_CONFIG.endpoint;
   },
 
-  // Client operations
   async getClients() {
     try {
       const response = await databases.listDocuments(DATABASE_ID, CLIENTS_COLLECTION_ID);
@@ -212,7 +222,6 @@ export const appwrite = {
     try {
       console.log('Updating client with data:', clientData);
       
-      // Remove updated_at field as it's not in the schema
       const response = await databases.updateDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
@@ -224,7 +233,6 @@ export const appwrite = {
           phone: clientData.phone || '',
           address: clientData.address || '',
           notes: clientData.notes || ''
-          // Removed updated_at field that was causing the error
         }
       );
       console.log('Client update response:', response);
@@ -240,7 +248,6 @@ export const appwrite = {
     try {
       console.log('Attempting to delete client:', clientId);
       
-      // First delete all associated cases
       const cases = await this.getClientCases(clientId);
       console.log(`Found ${cases.length} cases to delete`);
       
@@ -253,7 +260,6 @@ export const appwrite = {
         }
       }
       
-      // Delete all serve attempts
       const serves = await this.getClientServeAttempts(clientId);
       console.log(`Found ${serves.length} serve attempts to delete`);
       
@@ -266,7 +272,6 @@ export const appwrite = {
         }
       }
       
-      // Delete all documents
       const documents = await this.getClientDocuments(clientId);
       console.log(`Found ${documents.length} documents to delete`);
       
@@ -279,7 +284,6 @@ export const appwrite = {
         }
       }
       
-      // Finally delete the client
       console.log('Deleting client record:', clientId);
       await databases.deleteDocument(
         DATABASE_ID,
@@ -294,13 +298,17 @@ export const appwrite = {
       throw error;
     }
   },
-
-  // Serve attempts operations
-  async getServeAttempts() {
+  async getServeAttempts(limit = 50, offset = 0) {
     try {
-      const response = await databases.listDocuments(DATABASE_ID, SERVE_ATTEMPTS_COLLECTION_ID);
+      // Add pagination to prevent memory overload
+      const queries = [
+        Query.orderDesc('timestamp'),
+        Query.limit(limit),
+        Query.offset(offset)
+      ];
       
-      // Map and sort the documents by timestamp (newest first)
+      const response = await databases.listDocuments(DATABASE_ID, SERVE_ATTEMPTS_COLLECTION_ID, queries);
+      
       const formattedServes = response.documents.map(doc => ({
         id: doc.$id,
         clientId: doc.client_id || "unknown",
@@ -312,9 +320,10 @@ export const appwrite = {
         status: doc.status || "unknown",
         timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
         attemptNumber: doc.attempt_number || 1,
-        imageData: doc.image_data || null,
+        // Only include image data for recent records to save memory
+        imageData: offset === 0 ? (doc.image_data || null) : null,
         address: doc.address || "",
-      })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      }));
       
       return formattedServes;
     } catch (error) {
@@ -330,7 +339,6 @@ export const appwrite = {
         SERVE_ATTEMPTS_COLLECTION_ID,
         [Query.equal('client_id', clientId)]
       );
-      // Convert each document to frontend format and sort by timestamp
       return response.documents.map(doc => ({
         id: doc.$id,
         clientId: doc.client_id || "unknown",
@@ -364,7 +372,6 @@ export const appwrite = {
         throw new Error("Valid client ID is required for serve attempts.");
       }
 
-      // Get client data to ensure we have client_name
       let clientName = serveData.clientName || "Unknown Client";
       if (clientName === "Unknown Client") {
         try {
@@ -381,17 +388,14 @@ export const appwrite = {
         }
       }
 
-      // Extract address - prioritize from serveData, fallback to case addresses
       const address = serveData.address || 
-                     (typeof serveData.coordinates === 'string' ? 
-                      `Coordinates: ${serveData.coordinates}` : 
-                      "Address not provided");
+                      (typeof serveData.coordinates === 'string' ? 
+                       `Coordinates: ${serveData.coordinates}` : 
+                       "Address not provided");
 
-      // Handle case number and name fields
       const caseNumber = serveData.caseNumber || "Not Specified";
       const caseName = serveData.caseName || "Unknown Case";
 
-      // Format coordinates
       let coordinates = "0,0";
       if (serveData.coordinates) {
         if (typeof serveData.coordinates === 'string') {
@@ -401,10 +405,8 @@ export const appwrite = {
         }
       }
 
-      // Generate document ID
       const documentId = ID.unique();
 
-      // Create document with all required fields - REMOVE client_email as it's not in schema
       const payload = {
         client_id: serveData.clientId,
         client_name: clientName,
@@ -415,29 +417,91 @@ export const appwrite = {
         address: address,
         coordinates: coordinates,
         image_data: serveData.imageData || "",
-        timestamp: serveData.timestamp ? serveData.timestamp.toISOString() : new Date().toISOString(),
+        timestamp: serveData.timestamp ? 
+                   (serveData.timestamp instanceof Date ? 
+                    serveData.timestamp.toISOString() : 
+                    new Date(serveData.timestamp).toISOString()) : 
+                   new Date().toISOString(),
         attempt_number: serveData.attemptNumber || 1,
       };
 
-      // Store client email in local state but don't send to Appwrite
-      const clientEmail = serveData.clientEmail;
-      console.log("Client email will be stored locally but not in Appwrite:", clientEmail);
-
-      // Create document without client_email field
       const response = await databases.createDocument(
         DATABASE_ID,
         SERVE_ATTEMPTS_COLLECTION_ID,
         documentId,
         payload
       );
-
-      // Add the client email back to the response for local use
-      response.clientEmail = clientEmail;
-
-      console.log("Serve attempt created successfully with ID:", response.$id);
+      
+      console.log("Serve attempt saved successfully with ID:", response.$id);
+      
+      if (serveData.clientEmail) {
+        response.clientEmail = serveData.clientEmail;
+      }
+      
+      try {
+        const emailBody = createServeEmailBody(
+          response.client_name,
+          response.address,
+          response.notes,
+          new Date(response.timestamp),
+          response.coordinates,
+          response.attempt_number,
+          response.case_name
+        );
+    
+        const statusText = response.status === 'completed' ? 'Successful' : 'Failed';
+        const emailData = {
+          to: serveData.clientEmail || "info@justlegalsolutions.org",
+          subject: `New Serve Attempt ${statusText} - ${response.case_name}`,
+          html: emailBody,
+          imageData: response.image_data, 
+          coordinates: response.coordinates,
+          notes: response.notes,
+          status: response.status
+        };
+    
+        console.log("Sending email with full data payload...");
+        const emailResult = await this.sendEmailViaFunction(emailData);
+    
+        if (emailResult.success) {
+          console.log("Email sent successfully:", emailResult.message);
+        } else {
+          console.error("Failed to send email:", emailResult.message);
+        }
+      } catch (emailError) {
+        console.error("Error sending email notification:", emailError);
+      }
+      
       return response;
     } catch (error) {
       console.error("Error creating serve attempt:", error);
+      
+      try {
+        console.log("Saving serve attempt to local storage as fallback");
+        const serveAttempts = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
+        const newServe = {
+          id: ID.unique(),
+          clientId: serveData.clientId,
+          clientName: serveData.clientName || "Unknown Client",
+          clientEmail: serveData.clientEmail,
+          caseNumber: serveData.caseNumber || "Unknown",
+          caseName: serveData.caseName || "Unknown Case",
+          coordinates: serveData.coordinates || null,
+          notes: serveData.notes || "",
+          status: serveData.status || "unknown",
+          timestamp: new Date(),
+          attemptNumber: serveData.attemptNumber || 1,
+          imageData: serveData.imageData || null,
+          address: serveData.address || ""
+        };
+        serveAttempts.push(newServe);
+        localStorage.setItem("serve-tracker-serves", JSON.stringify(serveAttempts));
+        console.log("Saved to local storage successfully");
+        return newServe;
+      } catch (localError) {
+        console.error("Failed local storage fallback:", localError);
+      }
+      
       throw error;
     }
   },
@@ -446,14 +510,12 @@ export const appwrite = {
     try {
       console.log("Updating serve attempt with data:", serveData);
 
-      // Get the document ID - could be string or object with id/$id
       const docId = typeof serveId === 'object' ? (serveId.id || serveId.$id) : serveId;
 
       if (!docId) {
         throw new Error("Valid serve ID is required for updating");
       }
 
-      // First, fetch the current document to preserve original data
       const originalDoc = await databases.getDocument(
         DATABASE_ID,
         SERVE_ATTEMPTS_COLLECTION_ID,
@@ -462,10 +524,8 @@ export const appwrite = {
 
       console.log("Original document:", originalDoc);
 
-      // Prepare update data - only include fields that are actually being changed
       const updateData = {};
       
-      // For string fields, update only if they differ from original and are not undefined
       if (serveData.notes !== undefined && serveData.notes !== originalDoc.notes) 
         updateData.notes = serveData.notes;
       
@@ -478,22 +538,8 @@ export const appwrite = {
       if (serveData.caseName !== undefined && serveData.caseName !== originalDoc.case_name) 
         updateData.case_name = serveData.caseName;
       
-      if (serveData.case_number !== undefined && serveData.case_number !== originalDoc.case_number) 
-        updateData.case_number = serveData.case_number;
-      
-      if (serveData.case_name !== undefined && serveData.case_name !== originalDoc.case_name) 
-        updateData.case_name = serveData.case_name;
-      
-      // Never update these fields when editing to preserve original data
-      // - timestamp (preserve original)
-      // - client_id (preserve original relationship)
-      // - client_name (preserve original)
-      // - attempt_number (preserve original)
-      // - image_data (preserve original unless explicitly provided)
-      
       console.log("Updating document with fields:", updateData);
 
-      // Only perform update if there are fields to update
       if (Object.keys(updateData).length > 0) {
         const response = await databases.updateDocument(
           DATABASE_ID,
@@ -504,13 +550,48 @@ export const appwrite = {
 
         console.log("Update response:", response);
 
-        // Sync with local storage
+        // --- THIS IS THE NEW CODE ---
+        try {
+          // Fetch the client's data to get their email
+          const client = await databases.getDocument(DATABASE_ID, CLIENTS_COLLECTION_ID, response.client_id);
+          const clientEmail = client.email;
+          
+          if (clientEmail) {
+            const emailBody = createServeEmailBody(
+              response.client_name,
+              response.address,
+              response.notes,
+              new Date(response.timestamp),
+              response.coordinates,
+              response.attempt_number,
+              response.case_name
+            );
+
+            const statusText = response.status === 'completed' ? 'Successful' : 'Failed';
+            const emailData = {
+              to: clientEmail,
+              subject: `Serve Attempt Updated - ${response.case_name}`,
+              html: emailBody,
+              imageData: response.image_data, 
+              coordinates: response.coordinates,
+              notes: response.notes,
+              status: response.status
+            };
+
+            console.log("Sending update email notification...");
+            await this.sendEmailViaFunction(emailData);
+          }
+        } catch (emailError) {
+          console.error("Error sending update email notification:", emailError);
+        }
+        // --- END OF NEW CODE ---
+        
         await this.syncAppwriteServesToLocal();
 
         return response;
       } else {
         console.log("No fields to update");
-        return originalDoc; // Return original document if no updates
+        return originalDoc;
       }
     } catch (error) {
       console.error('Error updating serve attempt:', error);
@@ -522,7 +603,7 @@ export const appwrite = {
     try {
       if (!serveId) {
         console.warn("Invalid serveId provided to deleteServeAttempt:", serveId);
-        return false; // Skip deletion if serveId is invalid
+        return false;
       }
 
       console.log(`Attempting to delete serve attempt with ID: ${serveId}`);
@@ -539,10 +620,9 @@ export const appwrite = {
     try {
       console.log(`Resolving client ID for fallback client_id: ${fallbackClientId}`);
 
-      // Check client_cases table
-      const cases = await this.databases.listDocuments(
-        this.DATABASE_ID,
-        this.CASES_COLLECTION_ID,
+      const cases = await databases.listDocuments(
+        DATABASE_ID,
+        CASES_COLLECTION_ID,
         [Query.equal('client_id', fallbackClientId)]
       );
       if (cases.documents.length > 0) {
@@ -550,10 +630,9 @@ export const appwrite = {
         return fallbackClientId;
       }
 
-      // Check client_documents table
-      const documents = await this.databases.listDocuments(
-        this.DATABASE_ID,
-        this.DOCUMENTS_COLLECTION_ID,
+      const documents = await databases.listDocuments(
+        DATABASE_ID,
+        DOCUMENTS_COLLECTION_ID,
         [Query.equal('client_id', fallbackClientId)]
       );
       if (documents.documents.length > 0) {
@@ -561,10 +640,9 @@ export const appwrite = {
         return fallbackClientId;
       }
 
-      // Check serve_attempts table
-      const serves = await this.databases.listDocuments(
-        this.DATABASE_ID,
-        this.SERVE_ATTEMPTS_COLLECTION_ID,
+      const serves = await databases.listDocuments(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
         [Query.equal('client_id', fallbackClientId)]
       );
       if (serves.documents.length > 0) {
@@ -579,17 +657,23 @@ export const appwrite = {
       return null;
     }
   },
-
   async syncAppwriteServesToLocal() {
     try {
-      // Fetch all serve attempts from Appwrite
-      const response = await databases.listDocuments(DATABASE_ID, SERVE_ATTEMPTS_COLLECTION_ID);
+      // Only sync recent data to prevent memory overload
+      const response = await databases.listDocuments(
+        DATABASE_ID, 
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        [
+          Query.orderDesc('timestamp'),
+          Query.limit(100) // Limit to most recent 100 serves
+        ]
+      );
+      
       if (!response.documents || response.documents.length === 0) {
         console.log("No serve attempts found in Appwrite");
         return false;
       }
 
-      // Convert to frontend format and sort by timestamp (newest first)
       const frontendServes = response.documents.map(doc => ({
         id: doc.$id,
         clientId: doc.client_id || "unknown",
@@ -601,15 +685,24 @@ export const appwrite = {
         status: doc.status || "unknown",
         timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
         attemptNumber: doc.attempt_number || 1,
-        imageData: doc.image_data || null,
+        // Only include image data for most recent 20 records
+        imageData: response.documents.indexOf(doc) < 20 ? (doc.image_data || null) : null,
         address: doc.address || "",
-      })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      }));
 
-      // Store in local storage
+      // Check localStorage size before saving
+      const dataString = JSON.stringify(frontendServes);
+      const sizeInMB = new Blob([dataString]).size / (1024 * 1024);
+      
+      if (sizeInMB > 5) { // If data is over 5MB, reduce image data
+        console.warn(`Data size is ${sizeInMB.toFixed(2)}MB, removing image data to prevent memory issues`);
+        frontendServes.forEach(serve => serve.imageData = null);
+      }
+
       localStorage.setItem("serve-tracker-serves", JSON.stringify(frontendServes));
       window.dispatchEvent(new CustomEvent("serves-updated"));
 
-      console.log(`Synced ${frontendServes.length} serve attempts from Appwrite to local storage`);
+      console.log(`Synced ${frontendServes.length} serve attempts from Appwrite to local storage (${sizeInMB.toFixed(2)}MB)`);
       return true;
     } catch (error) {
       console.error("Error syncing serve attempts from Appwrite:", error);
@@ -617,7 +710,6 @@ export const appwrite = {
     }
   },
 
-  // Case operations
   async getClientCases(clientId) {
     try {
       const response = await databases.listDocuments(
@@ -714,7 +806,6 @@ export const appwrite = {
     }
   },
 
-  // Storage operations
   async uploadClientDocument(clientId, file, caseNumber, description) {
     try {
       const fileId = ID.unique();
@@ -770,7 +861,6 @@ export const appwrite = {
     try {
       console.log(`Attempting to delete document with ID: ${docId} and fileId: ${fileId}`);
 
-      // Validate fileId
       if (fileId && (!/^[a-zA-Z0-9_]{1,36}$/.test(fileId) || fileId.startsWith('_'))) {
         console.warn(`Invalid fileId: ${fileId}. Skipping file deletion.`);
       } else if (fileId) {
@@ -778,7 +868,6 @@ export const appwrite = {
         console.log(`Successfully deleted file with fileId: ${fileId}`);
       }
 
-      // Delete the document from the database
       await databases.deleteDocument(DATABASE_ID, DOCUMENTS_COLLECTION_ID, docId);
       console.log(`Successfully deleted document with ID: ${docId}`);
       return true;

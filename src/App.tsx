@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -12,20 +11,23 @@ import Index from './pages/Index';
 import LoginPage from './pages/LoginPage';
 import MigrationPage from './pages/Migration';
 import DataExport from './pages/DataExport';
-import ErrorBoundary from './components/ErrorBoundary';
 import { ServeAttemptData } from './components/ServeAttempt';
 import { ClientData } from './components/ClientForm';
 import { appwrite } from './lib/appwrite';
 import {
   checkAppwriteConnection,
   loadDataFromAppwrite,
+  clearLocalStorage,
+  getActiveBackend,
 } from "./utils/dataSwitch";
+import { ACTIVE_BACKEND, BACKEND_PROVIDER } from './config/backendConfig';
 import { toast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { initializeDebugTools } from '@/utils/debugUtils';
 import { normalizeServeDataArray } from "@/utils/dataNormalization";
-import { sendEmail, createServeEmailBody, createDeleteNotificationEmail } from "@/utils/email";
+import { createServeEmailBody, createDeleteNotificationEmail } from "@/utils/email";
+import { shouldSkipSync, logMemoryStats } from "@/utils/memoryUtils";
 
 // Initialize debug tools for development
 if (process.env.NODE_ENV !== 'production') {
@@ -105,14 +107,14 @@ const AnimatedRoutes = () => {
     return savedClients ? JSON.parse(savedClients) : [];
   });
   const [serves, setServes] = useState<ServeAttemptData[]>(() => {
-    // Load a limited set from localStorage for initial render
     const savedServes = localStorage.getItem("serve-tracker-serves");
-    const allServes = savedServes ? JSON.parse(savedServes) : [];
-    console.log("Initial load from localStorage:", allServes.length, "serves (limiting to 20 for performance)");
-    return allServes.slice(0, 20); // Limit initial load
+    console.log("Initial load from localStorage serve-tracker-serves:", 
+      savedServes ? JSON.parse(savedServes).length : 0, "entries");
+    return savedServes ? JSON.parse(savedServes) : [];
   });
   const [isInitialSync, setIsInitialSync] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [showAppwriteAlert, setShowAppwriteAlert] = useState(false);
 
   useEffect(() => {
@@ -143,12 +145,10 @@ const AnimatedRoutes = () => {
         localStorage.setItem("serve-tracker-clients", JSON.stringify(appwriteClients));
       }
       if (appwriteServes.length > 0) {
-        // Limit the number of serves in memory
-        const limitedServes = appwriteServes.slice(0, 50);
-        setServes(limitedServes);
-        localStorage.setItem("serve-tracker-serves", JSON.stringify(appwriteServes)); // Save all to localStorage
-        console.log(`Loaded ${appwriteServes.length} serves from Appwrite, keeping ${limitedServes.length} in memory`);
+        setServes(appwriteServes);
+        localStorage.setItem("serve-tracker-serves", JSON.stringify(appwriteServes));
       }
+      setDataLoaded(true);
     } catch (error) {
       console.error("Error loading data from Appwrite:", error);
     } finally {
@@ -172,20 +172,30 @@ const AnimatedRoutes = () => {
       }
     };
     performInitialSync();
-  }, [isInitialSync]);
-
-  // Remove the aggressive 5-second sync interval
-  // Only sync when explicitly requested or on real-time updates
-  useEffect(() => {
-    // Much longer sync interval to prevent performance issues
+  }, [isInitialSync]);  useEffect(() => {
+    // Reduce sync frequency and add memory protection
     const syncInterval = setInterval(async () => {
       try {
-        console.log("Running periodic sync with Appwrite (every 5 minutes)...");
+        // Check memory usage before syncing
+        if (shouldSkipSync()) {
+          console.warn("Skipping sync due to memory concerns");
+          return;
+        }
+
+        console.log("Running periodic sync with Appwrite...");
+        logMemoryStats(); // Log memory usage for debugging
+        
+        // Only sync if we don't have too much data in memory
+        const currentServes = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
+        if (currentServes.length > 1000) {
+          console.warn("Too many serves in memory, skipping sync to prevent memory issues");
+          return;
+        }
         await loadAppwriteData();
       } catch (error) {
         console.error("Error during periodic sync with Appwrite:", error);
       }
-    }, 300000); // 5 minutes instead of 5 seconds
+    }, 30000); // Changed from 5 seconds to 30 seconds
     return () => {
       clearInterval(syncInterval);
     };
@@ -197,10 +207,8 @@ const AnimatedRoutes = () => {
   }, [clients]);
 
   useEffect(() => {
-    // Only update localStorage with the limited serves in memory
-    // Full data is handled by the optimized hooks
-    localStorage.setItem("serve-tracker-serves-limited", JSON.stringify(serves));
-    console.log("Updated localStorage serve-tracker-serves-limited:", serves.length, "entries");
+    localStorage.setItem("serve-tracker-serves", JSON.stringify(serves));
+    console.log("Updated localStorage serve-tracker-serves:", serves.length, "entries");
   }, [serves]);
 
   const createClient = async (client) => {
@@ -362,120 +370,51 @@ const AnimatedRoutes = () => {
 
   const createServe = async (serveData) => {
     try {
-      console.log("Starting createServe with data:", {
-        clientId: serveData.clientId,
-        clientName: serveData.clientName,
-        clientEmail: serveData.clientEmail,
-        caseNumber: serveData.caseNumber
-      });
+      console.log("Starting createServe with data:", serveData);
 
-      // Ensure we have the client email
-      let clientEmail = serveData.clientEmail;
-      
-      if (!clientEmail && serveData.clientId) {
-        console.log("Client email not provided, attempting to find it");
-        
-        // Try to get from local clients state first
-        const client = clients.find(c => c.id === serveData.clientId);
-        if (client && client.email) {
-          clientEmail = client.email;
-          console.log("Found client email in local state:", clientEmail);
-          serveData.clientEmail = clientEmail;
-        } else {
-          console.log("Client email not found in local state, querying Appwrite");
-          try {
-            // Get client from Appwrite directly
-            const client = await appwrite.databases.getDocument(
-              appwrite.DATABASE_ID,
-              appwrite.collections.clients,
-              serveData.clientId
-            );
-            
-            if (client && client.email) {
-              clientEmail = client.email;
-              console.log("Retrieved client email from Appwrite:", clientEmail);
-              serveData.clientEmail = clientEmail;
-            } else {
-              console.warn("Client found in Appwrite but no email available");
-            }
-          } catch (error) {
-            console.error("Failed to retrieve client from Appwrite:", error);
-          }
-        }
-      }
-
-      // Create the serve attempt in Appwrite
-      console.log("Creating serve attempt in Appwrite database");
+      // Save the serve attempt to the database
+      console.log("Saving serve attempt to Appwrite database");
       const newServe = await appwrite.createServeAttempt(serveData);
-      console.log("Serve attempt created successfully:", newServe.id);
+      console.log("Serve attempt saved successfully:", newServe.id);
 
       // Format the serve data for state update
       const formattedServe = {
         id: newServe.id || newServe.$id,
         ...newServe,
-        clientEmail: clientEmail,
         timestamp: new Date(newServe.timestamp || new Date()),
       };
 
-      // Update local state (only add to limited set)
-      setServes((prev) => [formattedServe, ...prev.slice(0, 19)]); // Keep only 20 in memory
+      // Update local state
+      setServes((prev) => [...prev, formattedServe]);
 
       // Prepare and send email notification
       console.log("Preparing email notification for serve attempt");
-      
-      // Extract address from serveData or use a default
-      const address = serveData.address || 
-                      (serveData.coordinates ? `Coordinates: ${serveData.coordinates}` : "No address provided");
-
-      // Format coordinates for the email
-      let coordinates = { latitude: 0, longitude: 0 };
-      if (serveData.coordinates) {
-        if (typeof serveData.coordinates === 'string') {
-          const [lat, lng] = serveData.coordinates.split(',').map(Number);
-          coordinates = { latitude: lat, longitude: lng };
-        } else if (typeof serveData.coordinates === 'object') {
-          coordinates = serveData.coordinates;
-        }
-      }
-
-      // Create the email content
       const emailBody = createServeEmailBody(
         serveData.clientName || "Unknown Client",
-        address,
+        serveData.address || "No address provided",
         serveData.notes || "No notes provided",
         new Date(formattedServe.timestamp),
-        coordinates,
+        serveData.coordinates,
         serveData.attemptNumber || 1,
         serveData.caseNumber || "Unknown Case"
       );
 
-      // Prepare recipients list
-      const recipients = ["info@justlegalsolutions.org"]; // Always include business email
-      
-      // Add client email if available
-      if (clientEmail && clientEmail !== "info@justlegalsolutions.org") {
-        recipients.push(clientEmail);
+      const emailData = {
+        to: serveData.clientEmail || "info@justlegalsolutions.org",
+        subject: `New Serve Attempt Created - ${serveData.caseNumber || "Unknown Case"}`,
+        html: emailBody,
+        imageData: serveData.imageData // Include image data in the email payload
+      };
+
+      console.log("Sending email notification via Appwrite function");
+      const emailResult = await appwrite.sendEmailViaFunction(emailData);
+
+      if (emailResult.success) {
+        console.log("Email sent successfully:", emailResult.message);
+      } else {
+        console.error("Failed to send email:", emailResult.message);
       }
 
-      console.log("Sending email notification to:", recipients);
-      console.log("Email subject:", `New Serve Attempt Created - ${serveData.caseNumber || "Unknown Case"}`);
-
-      // Send the email
-      try {
-        const emailResult = await sendEmail({
-          to: recipients,
-          subject: `New Serve Attempt Created - ${serveData.caseNumber || "Unknown Case"}`,
-          body: emailBody,
-          html: emailBody,
-          imageData: serveData.imageData
-        });
-
-        console.log("Email sending result:", emailResult);
-      } catch (emailError) {
-        console.error("Failed to send email notification:", emailError);
-      }
-
-      // Notify the user
       toast({
         title: "Serve recorded",
         description: "Service attempt has been saved successfully",
@@ -600,13 +539,15 @@ const AnimatedRoutes = () => {
           recipients.push("info@justlegalsolutions.org");
         }
 
-        console.log("Sending deletion notification to:", recipients);
-        const emailResult = await sendEmail({
+        // Prepare the email data for deletion notification
+        const emailData = {
           to: recipients,
           subject: `Serve Attempt Deleted - ${serve.caseNumber || "Unknown Case"}`,
-          body: emailBody,
           html: emailBody,
-        });
+        };
+
+        console.log("Sending deletion notification via Appwrite function");
+        const emailResult = await appwrite.sendEmailViaFunction(emailData);
 
         if (emailResult.success) {
           console.log("Email sent successfully:", emailResult.message);
@@ -641,18 +582,8 @@ const AnimatedRoutes = () => {
     return normalizedServes;
   };
 
-  const refreshServes = async () => {
-    try {
-      console.log("Refreshing serves data from Appwrite");
-      await loadAppwriteData();
-    } catch (error) {
-      console.error("Error refreshing serves:", error);
-      throw error;
-    }
-  };
-
   return (
-    <ErrorBoundary>
+    <>
       {showAppwriteAlert && (
         <Alert className="m-4">
           <AlertTitle>Connection Warning</AlertTitle>
@@ -702,7 +633,6 @@ const AnimatedRoutes = () => {
               clients={clients}
               deleteServe={deleteServe}
               updateServe={updateServe}
-              refreshServes={refreshServes}
             />
           } />
           <Route path="/migration" element={<MigrationPage />} />
@@ -710,16 +640,14 @@ const AnimatedRoutes = () => {
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>
-    </ErrorBoundary>
+    </>
   );
 };
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <AnimatedRoutes />
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AnimatedRoutes />
+    </QueryClientProvider>
   );
 }

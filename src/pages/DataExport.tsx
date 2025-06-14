@@ -5,10 +5,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { Calendar as CalendarIcon, Download, FileSpreadsheet, ArrowLeft, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, FileSpreadsheet, ArrowLeft, Loader2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { exportServeData } from "@/utils/appwriteStorage";
 import { useToast } from "@/hooks/use-toast";
+import { appwrite } from "@/lib/appwrite";
 
 const DataExport: React.FC = () => {
   const navigate = useNavigate();
@@ -17,54 +17,128 @@ const DataExport: React.FC = () => {
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleExport = async () => {
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    try {
+      // Fetch all serve attempts from Appwrite
+      const serveAttempts = await appwrite.getServeAttempts();
+
+      if (serveAttempts.length === 0) {
+        toast({
+          title: "No Data",
+          description: "No serve attempts found in the database.",
+          variant: "warning",
+        });
+        return;
+      }
+
+      // Convert serve attempts to CSV format
+      const csvContent = convertToCSV(serveAttempts);
+
+      // Create a downloadable file
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fileName = `serve-data-all.csv`;
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export Successful",
+        description: `All data exported to ${fileName}.`,
+        variant: "success",
+      });
+    } catch (error) {
+      console.error("Error exporting all data:", error);
+      toast({
+        title: "Export Failed",
+        description: "An error occurred while exporting all data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportDateRange = async () => {
     if (!startDate || !endDate) {
-      console.log("Date range required: Please select both a start and end date");
+      toast({
+        title: "Invalid Date Range",
+        description: "Please select both a start and end date.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (startDate > endDate) {
-      console.log("Invalid date range: Start date cannot be after end date");
+      toast({
+        title: "Invalid Date Range",
+        description: "Start date cannot be after the end date.",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsExporting(true);
     try {
-      const result = await exportServeData(startDate, endDate);
-      
-      if (result.success && result.data) {
-        // Create a CSV file
-        const blob = new Blob([result.data], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        
-        // Create a link to download the file
-        const link = document.createElement("a");
-        const fileName = `serve-data-${format(startDate, "yyyy-MM-dd")}-to-${format(endDate, "yyyy-MM-dd")}.csv`;
-        
-        link.setAttribute("href", url);
-        link.setAttribute("download", fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
+      // Fetch serve attempts from Appwrite
+      const serveAttempts = await appwrite.getServeAttempts();
+      const filteredAttempts = serveAttempts.filter((attempt) => {
+        const attemptDate = new Date(attempt.timestamp);
+        return attemptDate >= startDate && attemptDate <= endDate;
+      });
+
+      if (filteredAttempts.length === 0) {
         toast({
-          title: "Export successful",
-          description: `Data exported to ${fileName}`,
-          variant: "success"
+          title: "No Data",
+          description: "No serve attempts found for the selected date range.",
+          variant: "warning",
         });
-      } else {
-        throw new Error(result.error || "Failed to export data");
+        return;
       }
+
+      // Convert serve attempts to CSV format
+      const csvContent = convertToCSV(filteredAttempts);
+
+      // Create a downloadable file
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const fileName = `serve-data-${format(startDate, "yyyy-MM-dd")}-to-${format(endDate, "yyyy-MM-dd")}.csv`;
+      link.href = url;
+      link.setAttribute("download", fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export Successful",
+        description: `Data exported to ${fileName}.`,
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error exporting data:", error);
       toast({
-        title: "Export failed",
-        description: error instanceof Error ? error.message : "An error occurred during export",
-        variant: "destructive"
+        title: "Export Failed",
+        description: "An error occurred while exporting data.",
+        variant: "destructive",
       });
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const convertToCSV = (data: any[]) => {
+    const headers = Object.keys(data[0]).join(",");
+    const rows = data.map((row) =>
+      Object.values(row)
+        .map((value) => `"${value}"`)
+        .join(",")
+    );
+    return [headers, ...rows].join("\n");
   };
 
   return (
@@ -80,7 +154,7 @@ const DataExport: React.FC = () => {
         </Button>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Data Export</h1>
         <p className="text-muted-foreground">
-          Export your serve data to CSV for use in Excel or other spreadsheet applications
+          Export your serve data to CSV for use in Excel or other spreadsheet applications.
         </p>
       </div>
 
@@ -88,7 +162,7 @@ const DataExport: React.FC = () => {
         <CardHeader>
           <CardTitle>Export Serve Data</CardTitle>
           <CardDescription>
-            Select a date range and export all serve data as CSV
+            Select a date range and export all serve data as CSV.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -147,7 +221,7 @@ const DataExport: React.FC = () => {
           </div>
 
           <Button 
-            onClick={handleExport} 
+            onClick={handleExportDateRange} 
             className="w-full" 
             disabled={isExporting || !startDate || !endDate}
           >
@@ -159,7 +233,7 @@ const DataExport: React.FC = () => {
             ) : (
               <>
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
-                Export as CSV
+                Export Date Range
               </>
             )}
           </Button>
@@ -167,20 +241,31 @@ const DataExport: React.FC = () => {
       </Card>
 
       <div className="mt-6">
-        <Card className="neo-card bg-amber-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              <div className="p-2 rounded-full bg-amber-100 text-amber-700">
-                <Download className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-medium mb-1">About Data Exports</h3>
-                <p className="text-sm text-muted-foreground">
-                  Exports include client information, case details, serve status, GPS coordinates, and timestamps.
-                  The CSV file can be opened in Excel, Google Sheets, or any spreadsheet application.
-                </p>
-              </div>
-            </div>
+        <Card className="neo-card">
+          <CardHeader>
+            <CardTitle>Export All Serve Attempts</CardTitle>
+            <CardDescription>
+              Export all serve attempts from the database as a CSV file.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={handleExportAll} 
+              className="w-full" 
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export All Data
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>

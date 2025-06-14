@@ -1,121 +1,81 @@
-
 const nodemailer = require('nodemailer');
 
-/**
- * Sends an email using nodemailer
- * 
- * @param {Object} req - The request object
- * @param {Object} res - The response object
- */
+/*
+  'req' variable has:
+    'headers' - object with request headers
+    'payload' - request body data as a string
+    'variables' - object with function variables
+
+  'res' variable has:
+    'send(text, status)' - function to return text response. Status code defaults to 200
+    'json(obj, status)' - function to return JSON response. Status code defaults to 200
+  
+  If an error is thrown, a response with code 500 will be returned.
+*/
+
 module.exports = async function(req, res) {
   try {
-    // Parse the request body
-    let payload;
-    try {
-      payload = req.body ? 
-        (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) : {};
-    } catch (e) {
-      console.error("Error parsing request body:", e);
-      return res.json({
-        success: false,
-        message: `Invalid request format: ${e.message}`
-      }, 400);
+    // Parse the incoming JSON payload
+    const { to, subject, html, imageData } = JSON.parse(req.payload || '{}');
+    if (!to || !subject || !html) {
+      return res.json({ success: false, message: 'Missing required fields' }, 400);
     }
 
-    // Log the request body for debugging
-    console.log("Received email request:", payload);
-    
-    // Validate required fields
-    if (!payload.to || !payload.subject || (!payload.html && !payload.text)) {
-      return res.json({
-        success: false,
-        message: "Missing required fields. Required: to, subject, and either html or text."
-      }, 400);
-    }
-
-    // Get SMTP configuration from environment variables
-    const smtpConfig = {
-      host: process.env.SMTP_HOST || 'smtp.resend.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: false, // Use TLS instead of SSL for port 587
+    // Create Nodemailer transporter from env vars
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      secure: process.env.SMTP_SECURE === 'true', 
       auth: {
-        user: process.env.SMTP_USER || 'resend',
+        user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
-      },
-      tls: {
-        // Do not fail on invalid certs - but DO verify
-        rejectUnauthorized: true
       }
-    };
-
-    console.log("Using SMTP config:", {
-      host: smtpConfig.host,
-      port: smtpConfig.port,
-      secure: smtpConfig.secure,
-      user: smtpConfig.auth.user,
-      // Not logging the password for security
     });
 
-    // Create transporter
-    const transporter = nodemailer.createTransport(smtpConfig);
-
-    // Test the SMTP connection first
-    try {
-      await transporter.verify();
-      console.log("SMTP connection verified successfully");
-    } catch (smtpError) {
-      console.error("SMTP connection verification failed:", smtpError);
-      return res.json({
-        success: false,
-        message: `Failed to connect to SMTP server: ${smtpError.message}`,
-        error: smtpError.toString()
-      }, 500);
+    // Ensure recipients list includes the business email
+    const recipients = Array.isArray(to) ? [...to] : [to];
+    const businessEmail = 'info@justlegalsolutions.org';
+    if (!recipients.some(email => email.toLowerCase() === businessEmail.toLowerCase())) {
+      recipients.push(businessEmail);
     }
 
-    // Prepare email data
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || 'no-reply@justlegalsolutions.tech',
-      to: Array.isArray(payload.to) ? payload.to.join(',') : payload.to,
-      subject: payload.subject,
-      html: payload.html,
-      text: payload.text,
-      attachments: payload.attachments || []
-    };
+    console.log(`Final recipients list: ${recipients.join(', ')}`);
 
-    console.log("Sending email with options:", {
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      hasHtml: !!mailOptions.html,
-      hasText: !!mailOptions.text,
-      attachmentsCount: mailOptions.attachments.length
+    // Prepare attachments if Base64 image is provided
+    const attachments = [];
+    if (imageData) {
+      let base64Content = imageData;
+      if (imageData.includes('base64,')) {
+        base64Content = imageData.split('base64,')[1];
+      }
+      
+      attachments.push({
+        filename: 'serve_evidence.jpg',
+        content: base64Content,
+        encoding: 'base64'
+      });
+      console.log('Image successfully attached to email');
+    }
+
+    // Send email with all recipients
+    const info = await transporter.sendMail({
+      from: process.env.SMTP_FROM || 'no-reply@example.com',
+      to: recipients,
+      subject,
+      html,
+      attachments
     });
 
-    // Send the email
-    const info = await transporter.sendMail(mailOptions);
-
-    console.log('Email sent successfully:', info.messageId);
-    
-    // Set appropriate response headers
-    res.setHeader('Content-Type', 'application/json');
-    
-    // Return a proper JSON response
-    return res.json({
-      success: true,
-      message: "Email sent successfully",
-      messageId: info.messageId
+    console.log(`Email sent successfully to: ${recipients.join(', ')}`);
+    return res.json({ 
+      success: true, 
+      message: 'Email sent', 
+      messageId: info.messageId,
+      recipients: recipients 
     });
   } catch (error) {
     console.error('Error sending email:', error);
-    
-    // Set appropriate response headers
-    res.setHeader('Content-Type', 'application/json');
-    
-    // Return a proper JSON error response
-    return res.json({
-      success: false,
-      message: `Error sending email: ${error.message}`,
-      error: error.toString()
-    }, 500);
+    return res.json({ success: false, message: error.message }, 500);
   }
 };
+// Ensure no database operations (like deletion) are performed here

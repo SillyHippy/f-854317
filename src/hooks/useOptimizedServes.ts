@@ -30,7 +30,9 @@ export function useOptimizedServes(options: UseOptimizedServesOptions = {}) {
           try {
             const cachedData = JSON.parse(cached);
             if (cachedData.timestamp && Date.now() - cachedData.timestamp < 60000) { // 1 minute cache
-              setServes(normalizeServeDataArray(cachedData.serves.slice(0, limit)));
+              // Data from cache is already normalized, but lacks imageData to save space.
+              // We'll set it directly. The component will handle missing images.
+              setServes(cachedData.serves.slice(0, limit));
               setIsLoading(false);
               return;
             }
@@ -57,15 +59,38 @@ export function useOptimizedServes(options: UseOptimizedServesOptions = {}) {
       setServes(normalizedServes);
       setLastSync(new Date());
 
+      // Create a cache-friendly version by stripping large image data
+      const servesForCache = normalizedServes.map(serve => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { imageData, ...rest } = serve;
+        return rest;
+      });
+
       // Update optimized cache
-      localStorage.setItem("serve-tracker-serves-optimized", JSON.stringify({
-        serves: normalizedServes,
-        timestamp: Date.now()
-      }));
+      try {
+        localStorage.setItem("serve-tracker-serves-optimized", JSON.stringify({
+          serves: servesForCache,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
+          console.warn("Could not cache serves due to storage quota. If this persists, consider clearing local data in settings.");
+          // Attempt to clear old cache if it exists
+          localStorage.removeItem("serve-tracker-serves-optimized");
+        } else {
+          console.error("Error saving to localStorage:", e);
+        }
+      }
 
     } catch (err) {
       console.error("Error loading optimized serves:", err);
-      setError(err instanceof Error ? err.message : "Failed to load serves");
+      const errorMessage = err instanceof Error ? err.message : "Failed to load serves";
+
+      if (typeof errorMessage === 'string' && (errorMessage.includes('quota') || errorMessage.includes('exceeded'))) {
+        setError(`Failed to save data locally due to storage limits. You can clear local data from the Settings page to resolve this.`);
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -640,6 +641,16 @@ const AnimatedRoutes = () => {
     return normalizedServes;
   };
 
+  const refreshServes = async () => {
+    try {
+      console.log("Refreshing serves data from Appwrite");
+      await loadAppwriteData();
+    } catch (error) {
+      console.error("Error refreshing serves:", error);
+      throw error;
+    }
+  };
+
   return (
     <ErrorBoundary>
       {showAppwriteAlert && (
@@ -691,6 +702,7 @@ const AnimatedRoutes = () => {
               clients={clients}
               deleteServe={deleteServe}
               updateServe={updateServe}
+              refreshServes={refreshServes}
             />
           } />
           <Route path="/migration" element={<MigrationPage />} />

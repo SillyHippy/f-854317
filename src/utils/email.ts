@@ -122,7 +122,7 @@ export const createDeleteNotificationEmail = (
   `;
 };
 
-// Function to send email using the function endpoint
+// Function to send email using the netlify function endpoint
 export async function sendEmail(emailData: EmailData): Promise<{ success: boolean; message: string }> {
   try {
     console.log("Sending email to:", emailData.to);
@@ -163,8 +163,8 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
     console.log("Sending message to", recipients.length, "recipients with", 
       emailData.imageData ? "photo attachment" : "no attachments");
 
-    // Call the function endpoint directly with proper headers
-    const response = await fetch('/api/function/sendEmail', {
+    // Call the netlify function endpoint
+    const response = await fetch('/.netlify/functions/sendEmail', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,46 +175,34 @@ export async function sendEmail(emailData: EmailData): Promise<{ success: boolea
 
     // Log the raw response for debugging
     const responseText = await response.text();
-    console.log("API request completed in " + (Date.now() - performance.now()) + "ms with status " + response.status);
-    console.log("Raw response:", responseText.substring(0, 200) + "...");
+    console.log("Email function response status:", response.status);
+    console.log("Email function response:", responseText.substring(0, 200) + "...");
 
     // Try to parse the response as JSON
     let result;
     try {
-      // Parse the response as JSON
       result = JSON.parse(responseText);
       console.log("Email sending result:", result);
       
-      return { 
-        success: true, 
-        message: result.message || 'Email sent successfully' 
-      };
+      if (result.success) {
+        return { 
+          success: true, 
+          message: result.message || 'Email sent successfully' 
+        };
+      } else {
+        throw new Error(result.message || 'Email sending failed');
+      }
     } catch (jsonError) {
       console.log("Couldn't parse response as JSON:", jsonError);
       
-      // Check if the response contains HTML
-      if (responseText.includes("<!DOCTYPE html>") || responseText.includes("<html")) {
-        console.log("Received HTML response, which typically means the email was sent successfully");
-        
-        // Check if the response status was OK (200-299)
-        if (response.ok) {
-          return { 
-            success: true, 
-            message: 'Email appears to have been sent, but received non-JSON response' 
-          };
-        } else {
-          throw new Error(`Failed to send email: Server responded with status ${response.status}`);
-        }
+      // Check if the response was successful even if not JSON
+      if (response.ok) {
+        return { 
+          success: true, 
+          message: 'Email appears to have been sent successfully' 
+        };
       } else {
-        // Not HTML either, just return the raw text
-        if (response.ok) {
-          return { 
-            success: true, 
-            message: 'Email appears to have been sent with response: ' + responseText.substring(0, 100) 
-          };
-        } else {
-          throw new Error(`Failed to send email: ${responseText}`);
-        }
+        throw new Error(`Failed to send email: Server responded with status ${response.status}`);
       }
     }
   } catch (error) {

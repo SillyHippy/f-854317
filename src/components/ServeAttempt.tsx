@@ -300,7 +300,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       // Format coordinates as a string
       const formattedCoordinates = `${location.latitude},${location.longitude}`;
 
-      // Get client email for local use
+      // Get client email for notifications
       const clientEmail = selectedClient.email || null;
       console.log(`Using client email for notifications: ${clientEmail || "Not available"}`);
       
@@ -322,18 +322,15 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         attemptNumber: caseAttemptCount + 1,
       };
 
-      console.log("Submitting serve attempt data");
-      const savedServe = await appwrite.createServeAttempt(serveData);
+      console.log("Submitting serve attempt data and sending email notification");
 
-      if (!savedServe) {
-        throw new Error("Failed to save serve attempt.");
-      }
+      // First save the serve attempt
+      onComplete(serveData);
 
-      // Now send the message notification directly here
+      // Then send the email notification
       try {
-        console.log("Preparing to send notification message with image");
+        console.log("Preparing to send notification email with image");
         
-        // Create message body without embedding the image
         const emailBody = createServeEmailBody(
           serveData.clientName || "Unknown Client",
           address,
@@ -341,7 +338,8 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           new Date(),
           location,
           serveData.attemptNumber || 1,
-          serveData.caseNumber || "Unknown Case"
+          serveData.caseNumber || "Unknown Case",
+          serveData.caseName
         );
         
         // Set up recipients
@@ -352,9 +350,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           recipients.push(clientEmail);
         }
         
-        console.log(`Sending message to ${recipients.length} recipients with photo attachment`);
+        console.log(`Sending notification email to ${recipients.length} recipients with photo attachment`);
         
-        // Include the image as an attachment 
+        // Send email with image attachment 
         const emailResult = await sendEmail({
           to: recipients,
           subject: `New Serve Attempt Created - ${serveData.caseNumber || "Unknown Case"}`,
@@ -364,20 +362,31 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           imageFormat: 'jpeg'
         });
         
-        console.log("Message sending result:", emailResult);
-      } catch (messageError) {
-        console.error("Error sending notification message:", messageError);
-        // Continue with success even if message fails
+        console.log("Email sending result:", emailResult);
+        
+        if (emailResult.success) {
+          toast({
+            title: "Success",
+            description: "Serve recorded and notification email sent successfully.",
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "Partial Success",
+            description: "Serve recorded but email notification failed to send.",
+            variant: "destructive",
+          });
+        }
+      } catch (emailError) {
+        console.error("Error sending notification email:", emailError);
+        toast({
+          title: "Partial Success",
+          description: "Serve recorded but email notification failed to send.",
+          variant: "destructive",
+        });
       }
 
-      await appwrite.syncAppwriteServesToLocal();
-
-      toast({
-        title: "Serve recorded",
-        description: "Service attempt has been saved successfully.",
-        variant: "success",
-      });
-
+      // Reset form
       form.reset();
       setCapturedImage(null);
       setLocation(null);

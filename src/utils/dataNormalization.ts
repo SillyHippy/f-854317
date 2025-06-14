@@ -1,3 +1,4 @@
+
 import { ServeAttemptData } from "@/components/ServeAttempt";
 import { ClientData } from "@/components/ClientForm";
 
@@ -27,7 +28,7 @@ export function normalizeServeData(serve: any): ServeAttemptData | null {
     status: serve.status || "unknown",
     timestamp: serve.timestamp ? new Date(serve.timestamp) : new Date(),
     attemptNumber: serve.attemptNumber || serve.attempt_number || 1,
-    imageData: serve.imageData || serve.image_data || null,
+    imageUrl: serve.imageUrl || serve.image_url || null,
   };
 }
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -78,8 +79,15 @@ const Dashboard: React.FC<DashboardProps> = ({ clients, serves: propsServes }) =
         serveDate = new Date(serve.timestamp);
       } else if (serve.timestamp instanceof Date) {
         serveDate = serve.timestamp;
-      } else if (serve.timestamp._type === 'Date' && serve.timestamp.value) {
-        serveDate = new Date(serve.timestamp.value.iso || serve.timestamp.value);
+      } else if (typeof serve.timestamp === 'object' && serve.timestamp !== null) {
+        // Handle Appwrite timestamp format
+        const timestampObj = serve.timestamp as any;
+        if (timestampObj._type === 'Date' && timestampObj.value) {
+          const valueObj = timestampObj.value as any;
+          serveDate = new Date(valueObj.iso || valueObj.value || valueObj);
+        } else {
+          return false;
+        }
       } else {
         return false;
       }

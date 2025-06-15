@@ -375,6 +375,15 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         }
       }
 
+      // Ensure service address is properly set
+      let finalServiceAddress = data.serviceAddress || "";
+      if (!finalServiceAddress || finalServiceAddress.trim() === "") {
+        // Try to use GPS coordinates as fallback
+        if (location) {
+          finalServiceAddress = `GPS: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
+        }
+      }
+
       const serveData: ServeAttemptData = {
         clientId: selectedClient.id,
         clientName: selectedClient.name,
@@ -385,7 +394,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         imageData: imageWithGPS,
         coordinates: `${location.latitude},${location.longitude}`,
         address: selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available",
-        serviceAddress: data.serviceAddress,
+        serviceAddress: finalServiceAddress, // Ensure this is properly set
         notes: finalNotes,
         timestamp: new Date(),
         status: data.status,
@@ -393,7 +402,11 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         physicalDescription,
       };
 
-      console.log("Submitting serve attempt data to Appwrite:", serveData);
+      console.log("Submitting serve attempt data with service address:", {
+        serviceAddress: finalServiceAddress,
+        formServiceAddress: data.serviceAddress,
+        serveData
+      });
 
       // Save to the database
       const savedServe = await appwrite.createServeAttempt(serveData);
@@ -405,6 +418,10 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         variant: "success",
       });
 
+      // Call onComplete to navigate or update parent
+      onComplete(serveData);
+
+      // Reset form state
       form.reset();
       setCapturedImage(null);
       setLocation(null);

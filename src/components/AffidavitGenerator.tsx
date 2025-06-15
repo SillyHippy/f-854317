@@ -38,20 +38,33 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   const firstServe = serves[0];
   const actualCaseNumber = caseNumber || firstServe?.caseNumber || 'Case number not available';
 
-  // Extract service address from serves - try multiple fields
+  // Extract service address from serves - try multiple fields and prioritize service_address
   const getServiceAddress = () => {
     if (!serves || serves.length === 0) return 'Service address not available';
     
     // Try to find the most complete address from all serves
     for (const serve of serves) {
-      // Check various address fields
-      if (serve.serviceAddress && serve.serviceAddress.trim() && serve.serviceAddress !== 'Not specified') {
+      // Prioritize the dedicated service_address field
+      if (serve.serviceAddress && serve.serviceAddress.trim() && 
+          serve.serviceAddress !== 'Not specified' && 
+          serve.serviceAddress !== 'Service address not available') {
         return serve.serviceAddress;
       }
+    }
+    
+    // Fallback to other address fields
+    for (const serve of serves) {
       if (serve.address && serve.address.trim() && serve.address !== 'Not specified') {
         return serve.address;
       }
-      // Check if there's a full address in notes or other fields
+      // Check if there's a GPS coordinate and format it nicely
+      if (serve.coordinates && typeof serve.coordinates === 'string') {
+        const [lat, lng] = serve.coordinates.split(',');
+        if (lat && lng) {
+          return `Service Location: ${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`;
+        }
+      }
+      // Check if there's a full address in notes
       if (serve.notes && serve.notes.includes('address:')) {
         const addressMatch = serve.notes.match(/address:\s*(.+)/i);
         if (addressMatch && addressMatch[1]) {
@@ -108,7 +121,12 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
     caseNumber: actualCaseNumber,
     caseData,
     firstServe,
-    allServes: serves
+    allServes: serves,
+    serviceAddressDebug: serves.map(s => ({
+      serviceAddress: s.serviceAddress,
+      address: s.address,
+      coordinates: s.coordinates
+    }))
   });
 
   const handleGenerateAffidavit = async () => {

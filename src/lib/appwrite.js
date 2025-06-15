@@ -1,4 +1,3 @@
-
 import { Account, Client, Databases, ID, Query } from 'appwrite';
 
 const projectID = '64f0547b6bb869c489dd';
@@ -25,6 +24,12 @@ const appwrite = {
     client,
     account,
     databases,
+    
+    // Constants for external access
+    DATABASE_ID,
+    CLIENTS_COLLECTION_ID: COLLECTIONS.CLIENTS,
+    CLIENT_CASES_COLLECTION_ID: COLLECTIONS.CLIENT_CASES,
+    SERVE_ATTEMPTS_COLLECTION_ID: COLLECTIONS.SERVE_ATTEMPTS,
 
     // Account methods
     createAccount: (email, password, name) => account.create(ID.unique(), email, password, name),
@@ -66,16 +71,13 @@ const appwrite = {
             COLLECTIONS.CLIENTS,
             clientId
         );
-    },
-    listClients: async () => {
+    },    listClients: async () => {
         console.log("Listing clients");
         try {
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.CLIENTS,
-                [
-                    Query.orderAsc('name')
-                ]
+                [Query.orderAsc('name')]
             );
             console.log("Clients listed successfully:", response.documents);
             return response.documents;
@@ -83,6 +85,11 @@ const appwrite = {
             console.error("Error listing clients:", error);
             throw error;
         }
+    },
+
+    // Alias for listClients for backward compatibility
+    getClients: async () => {
+        return await appwrite.listClients();
     },
 
     // Case methods
@@ -119,8 +126,7 @@ const appwrite = {
             COLLECTIONS.CLIENT_CASES,
             caseId
         );
-    },
-    getClientCases: async (clientId) => {
+    },    getClientCases: async (clientId) => {
         console.log("Fetching cases for client ID:", clientId);
         try {
             const response = await databases.listDocuments(
@@ -203,8 +209,7 @@ const appwrite = {
             COLLECTIONS.SERVE_ATTEMPTS,
             serveId
         );
-    },
-    getClientServeAttempts: async (clientId) => {
+    },    getClientServeAttempts: async (clientId) => {
         console.log("Fetching serve attempts for client ID:", clientId);
         try {
             const response = await databases.listDocuments(
@@ -213,6 +218,27 @@ const appwrite = {
                 [
                     Query.equal('client_id', clientId),
                     Query.orderDesc('timestamp')
+                ]
+            );
+            console.log("Serve attempts listed successfully:", response.documents);
+            return response.documents;
+        } catch (error) {
+            console.error("Error listing serve attempts:", error);
+            throw error;
+        }
+    },
+
+    // Method to get all serve attempts with optional pagination
+    getServeAttempts: async (limit = 100, offset = 0) => {
+        console.log(`Fetching serve attempts with limit: ${limit}, offset: ${offset}`);
+        try {
+            const response = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTIONS.SERVE_ATTEMPTS,
+                [
+                    Query.orderDesc('timestamp'),
+                    Query.limit(limit),
+                    Query.offset(offset)
                 ]
             );
             console.log("Serve attempts listed successfully:", response.documents);

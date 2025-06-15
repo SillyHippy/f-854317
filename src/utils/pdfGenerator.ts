@@ -138,16 +138,13 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           return false;
         };
         
-        // Get case information from the first serve attempt (they should all be the same case)
+        // Get case information from the first serve attempt
         const firstServe = data.serveAttempts[0];
         let courtName = '';
         let plaintiffPetitioner = '';
         let defendantRespondent = '';
         
         if (firstServe && firstServe.caseNumber) {
-          // Try to get case details from the serve attempt
-          // Note: This would need to be enhanced to fetch actual case details from the database
-          // For now, we'll use the case name as a fallback for plaintiff/petitioner
           courtName = ''; // This should come from case data
           plaintiffPetitioner = data.caseName || ''; // This should come from case data
           defendantRespondent = ''; // This should come from case data
@@ -204,17 +201,18 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           ], data.personEntityBeingServed);
         }
         
-        // Parse and fill address information for the service location
-        if (data.clientAddress) {
+        // Use the actual service address from the serve attempts, not the client address
+        const serviceAddress = firstServe?.serviceAddress;
+        if (serviceAddress) {
           // Fill the full address in residence address field
           tryFillField([
             'Residence address', 
             'residence_address', 
             'ADDRESS'
-          ], data.clientAddress);
+          ], serviceAddress);
           
           // Try to split address for city/state field
-          const addressParts = data.clientAddress.split(',');
+          const addressParts = serviceAddress.split(',');
           if (addressParts.length >= 2) {
             // Get the last part which should be state/zip
             const lastPart = addressParts[addressParts.length - 1].trim();
@@ -229,16 +227,15 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               'city_state'
             ], cityState);
           }
-        }
 
-        // Only check residence checkbox if we have an address
-        if (data.clientAddress) {
-          tryCheckField([
-            'Residence Checkbox', 
-            'residence_checkbox', 
-            'residence_check',
-            'Residence'
-          ]);
+          // Only check residence checkbox if we have a service address that appears to be residential
+          // DON'T auto-check - let the user decide
+          // tryCheckField([
+          //   'Residence Checkbox', 
+          //   'residence_checkbox', 
+          //   'residence_check',
+          //   'Residence'
+          // ]);
         }
         
         // Fill service attempt information
@@ -282,31 +279,26 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           // Fill the main service date and time (On___ AT___ fields)
           if (successfulAttempt && successfulAttempt.timestamp) {
             const date = new Date(successfulAttempt.timestamp);
+            
+            // Try multiple field name variations for service date
             tryFillField([
               'DATE', 
               'service_date', 
               'On',
-              'On_'
+              'On_',
+              'Date',
+              'Service Date'
             ], date.toLocaleDateString());
             
+            // Try multiple field name variations for service time
             tryFillField([
               'TIME', 
               'service_time', 
               'AT',
-              'AT_'
+              'AT_',
+              'Time',
+              'Service Time'
             ], date.toLocaleTimeString());
-          }
-
-          // Service method logic - only check if we have clear indication
-          if (successfulAttempt) {
-            // Check Personal service for successful attempts - but leave as question to be answered
-            // tryCheckField([
-            //   'Personal check box', 
-            //   'Personal', 
-            //   'personal_service',
-            //   'personal_checkbox',
-            //   'By personally delivering copies to the person being served'
-            // ]);
           }
 
           // Fill description field with notes from attempts, including physical description

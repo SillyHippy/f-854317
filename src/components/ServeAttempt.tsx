@@ -79,7 +79,7 @@ const serveAttemptSchema = z.object({
   caseNumber: z.string().min(1, { message: "Please select a case" }),
   notes: z.string().optional(),
   status: z.enum(["completed", "failed"]),
-  serviceAddress: z.string().min(1, { message: "Please enter or select a service address" }),
+  serviceAddress: z.string().optional(), // Made optional
   personEntityBeingServed: z.string().min(1, { message: "Please enter the person/entity being served" }),
 });
 
@@ -773,11 +773,11 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                   name="serviceAddress"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Service Address *</FormLabel>
+                      <FormLabel>Service Address</FormLabel>
                       <FormControl>
                         <div className="space-y-2">
                           <Input 
-                            placeholder="Enter the actual service address"
+                            placeholder="Enter the actual service address (optional)"
                             {...field}
                           />
                           <div className="flex flex-col gap-2">

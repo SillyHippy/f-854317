@@ -77,7 +77,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         <div className="space-y-4">
           <div className="text-sm space-y-2 border rounded-md p-4 bg-accent/20">
             <p><strong>Person/Entity Being Served:</strong> {serves[0]?.personEntityBeingServed || caseName || 'Unknown'}</p>
-            <p><strong>Service Address:</strong> {serves[0]?.serviceAddress || client.address}</p>
+            <p><strong>Service Address:</strong> {serves[0]?.serviceAddress || 'Not specified'}</p>
             <p><strong>Case Number:</strong> {caseNumber || 'N/A'}</p>
             <p><strong>Attempts:</strong> {serves.length}</p>
           </div>

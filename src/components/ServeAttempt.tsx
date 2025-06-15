@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -140,17 +139,13 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   // Reverse geocode GPS coordinates to get address
   const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
     try {
-      const response = await fetch(
-        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=YOUR_OPENCAGE_API_KEY`
-      );
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        return data.results[0].formatted;
-      }
+      // For now, return a formatted address using coordinates
+      // In production, you would use a real geocoding service
+      return `GPS Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     } catch (error) {
       console.error("Reverse geocoding failed:", error);
+      return `GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     }
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
   };
 
   useEffect(() => {
@@ -321,8 +316,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       if (selectedCase?.homeAddress) {
         form.setValue("serviceAddress", selectedCase.homeAddress);
       }
-    } else {
-      form.setValue("serviceAddress", gpsAddress);
+    } else if (!useWorkAddress) {
+      // Only clear if work address is not selected
+      form.setValue("serviceAddress", "");
     }
   };
 
@@ -333,8 +329,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       if (selectedCase?.workAddress) {
         form.setValue("serviceAddress", selectedCase.workAddress);
       }
-    } else {
-      form.setValue("serviceAddress", gpsAddress);
+    } else if (!useHomeAddress) {
+      // Only clear if home address is not selected
+      form.setValue("serviceAddress", "");
     }
   };
 
@@ -342,14 +339,12 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     setCapturedImage(imageData);
     setLocation(coords);
     
-    // Get GPS address
+    // Get GPS address for reference only
     const address = await reverseGeocode(coords.latitude, coords.longitude);
     setGpsAddress(address);
     
-    // Set GPS address as default if no other address is selected
-    if (!useHomeAddress && !useWorkAddress) {
-      form.setValue("serviceAddress", address);
-    }
+    // Don't automatically set GPS address as service address
+    // Let user choose from available addresses or enter manually
     
     setStep("confirm");
   };
@@ -788,19 +783,14 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                   name="serviceAddress"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Service Address</FormLabel>
+                      <FormLabel>Service Address *</FormLabel>
                       <FormControl>
                         <div className="space-y-2">
                           <Input 
-                            placeholder="Enter service address"
+                            placeholder="Enter the actual service address"
                             {...field}
                           />
                           <div className="flex flex-col gap-2">
-                            {gpsAddress && (
-                              <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
-                                GPS Address: {gpsAddress}
-                              </div>
-                            )}
                             {selectedCase?.homeAddress && (
                               <div className="flex items-center space-x-2">
                                 <Checkbox
@@ -823,6 +813,11 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                                 <Label htmlFor="workAddress" className="text-xs cursor-pointer">
                                   Use Work Address: {selectedCase.workAddress}
                                 </Label>
+                              </div>
+                            )}
+                            {gpsAddress && (
+                              <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
+                                Reference: {gpsAddress}
                               </div>
                             )}
                           </div>

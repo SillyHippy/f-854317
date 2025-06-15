@@ -1,4 +1,3 @@
-
 import React from "react";
 import { 
   Card, 
@@ -9,8 +8,11 @@ import {
   CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2 } from "lucide-react";
+import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2, FileText, Download } from "lucide-react";
 import { ServeAttemptData } from "@/components/ServeAttempt";
+import { generateServeReportPDF } from "@/utils/pdfGenerator";
+import AffidavitGenerator from "@/components/AffidavitGenerator";
+import { useToast } from "@/hooks/use-toast";
 
 interface ServeHistoryProps {
   serves: ServeAttemptData[];
@@ -94,6 +96,38 @@ const formatCaseInfo = (caseNumber: string, caseName: string): string => {
 };
 
 const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, onEdit }) => {
+  const { toast } = useToast();
+
+  const handleGenerateReport = async (clientId: string) => {
+    try {
+      const client = clients.find(c => c.id === clientId || c.$id === clientId);
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Client not found",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const clientServes = serves.filter(serve => serve.clientId === clientId);
+      await generateServeReportPDF(client, clientServes);
+      
+      toast({
+        title: "Report Generated",
+        description: "Service report PDF has been downloaded successfully.",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate the report. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   console.log("ServeHistory component received serves:", serves);
   console.log("ServeHistory component received clients:", clients);
 
@@ -106,151 +140,196 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
     );
   }
 
+  // Group serves by client and case for affidavit generation
+  const groupedServes = serves.reduce((acc, serve) => {
+    const key = `${serve.clientId}-${serve.caseNumber}`;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(serve);
+    return acc;
+  }, {} as Record<string, ServeAttemptData[]>);
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {serves.map((serve) => {
-        // Make sure we have a valid serve object with an id
-        if (!serve || !serve.id) {
-          console.warn("Invalid serve attempt in list:", serve);
-          return null;
-        }
-        
-        // Get client name - first use directly from serve object, fall back to lookup by id
-        const clientName = serve.clientName && serve.clientName !== "Unknown Client" 
-          ? serve.clientName 
-          : getClientName(serve.clientId, clients);
-        
-        const googleMapsLink = getGoogleMapsLink(serve.coordinates);
-        
-        // Debug information
-        console.log(`Rendering serve ${serve.id}:`, {
-          clientName,
-          clientId: serve.clientId,
-          caseName: serve.caseName,
-          caseNumber: serve.caseNumber,
-          coordinates: serve.coordinates,
-          formattedCoordinates: formatCoordinates(serve.coordinates),
-          googleMapsLink,
-          status: serve.status,
-          timestamp: serve.timestamp,
-          formattedDate: formatDate(serve.timestamp)
-        });
-
-        // Get formatted case display
-        const caseDisplay = formatCaseInfo(serve.caseNumber || "Unknown", serve.caseName || "");
-
-        return (
-          <Card key={serve.id} className="overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex justify-between items-center">
-                <span>{clientName}</span>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  serve.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                  serve.status === 'failed' ? 'bg-amber-100 text-amber-700' : 
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {serve.status === 'completed' ? 'Successful' : 
-                   serve.status === 'failed' ? 'Failed' : 
-                   'Unknown'}
-                </span>
-              </CardTitle>
-              <CardDescription>
-                <span className="flex items-center gap-1">
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  <span>Case: {caseDisplay}</span>
-                </span>
-              </CardDescription>
-            </CardHeader>
+    <div className="space-y-6">
+      {/* PDF Generation Controls */}
+      <div className="bg-accent/20 p-4 rounded-lg">
+        <h3 className="font-medium mb-3">Generate Documents</h3>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(groupedServes).map(([key, caseServes]) => {
+            const serve = caseServes[0];
+            const client = clients.find(c => c.id === serve.clientId || c.$id === serve.clientId);
             
-            <CardContent className="pb-2">
-              <div className="space-y-2">
-                {serve.imageData && (
-                  <div className="rounded-md overflow-hidden mb-3 border h-36">
-                    <img 
-                      src={serve.imageData} 
-                      alt="Serve attempt" 
-                      className="w-full h-full object-cover" 
-                      onError={(e) => {
-                        console.error("Image failed to load:", e);
-                        e.currentTarget.src = "https://placehold.co/400x300?text=No+Image";
-                      }}
-                    />
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="space-y-1">
-                    <p className="font-medium flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      Date
-                    </p>
-                    <p className="text-muted-foreground">{formatDate(serve.timestamp)}</p>
+            if (!client) return null;
+            
+            return (
+              <div key={key} className="flex gap-2">
+                <AffidavitGenerator
+                  client={client}
+                  serves={caseServes}
+                  caseNumber={serve.caseNumber}
+                  caseName={serve.caseName}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGenerateReport(serve.clientId)}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Report: {client.name}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Existing serve history grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {serves.map((serve) => {
+          // Make sure we have a valid serve object with an id
+          if (!serve || !serve.id) {
+            console.warn("Invalid serve attempt in list:", serve);
+            return null;
+          }
+          
+          // Get client name - first use directly from serve object, fall back to lookup by id
+          const clientName = serve.clientName && serve.clientName !== "Unknown Client" 
+            ? serve.clientName 
+            : getClientName(serve.clientId, clients);
+          
+          const googleMapsLink = getGoogleMapsLink(serve.coordinates);
+          
+          // Debug information
+          console.log(`Rendering serve ${serve.id}:`, {
+            clientName,
+            clientId: serve.clientId,
+            caseName: serve.caseName,
+            caseNumber: serve.caseNumber,
+            coordinates: serve.coordinates,
+            formattedCoordinates: formatCoordinates(serve.coordinates),
+            googleMapsLink,
+            status: serve.status,
+            timestamp: serve.timestamp,
+            formattedDate: formatDate(serve.timestamp)
+          });
+
+          // Get formatted case display
+          const caseDisplay = formatCaseInfo(serve.caseNumber || "Unknown", serve.caseName || "");
+
+          return (
+            <Card key={serve.id} className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex justify-between items-center">
+                  <span>{clientName}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    serve.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                    serve.status === 'failed' ? 'bg-amber-100 text-amber-700' : 
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {serve.status === 'completed' ? 'Successful' : 
+                     serve.status === 'failed' ? 'Failed' : 
+                     'Unknown'}
+                  </span>
+                </CardTitle>
+                <CardDescription>
+                  <span className="flex items-center gap-1">
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    <span>Case: {caseDisplay}</span>
+                  </span>
+                </CardDescription>
+              </CardHeader>
+              
+              <CardContent className="pb-2">
+                <div className="space-y-2">
+                  {serve.imageData && (
+                    <div className="rounded-md overflow-hidden mb-3 border h-36">
+                      <img 
+                        src={serve.imageData} 
+                        alt="Serve attempt" 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          console.error("Image failed to load:", e);
+                          e.currentTarget.src = "https://placehold.co/400x300?text=No+Image";
+                        }}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="space-y-1">
+                      <p className="font-medium flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Date
+                      </p>
+                      <p className="text-muted-foreground">{formatDate(serve.timestamp)}</p>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="font-medium flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        Location
+                      </p>
+                      {googleMapsLink ? (
+                        <a
+                          href={googleMapsLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {formatCoordinates(serve.coordinates)}
+                        </a>
+                      ) : (
+                        <p className="text-muted-foreground truncate">{formatCoordinates(serve.coordinates)}</p>
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="space-y-1">
-                    <p className="font-medium flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5" />
-                      Location
-                    </p>
-                    {googleMapsLink ? (
-                      <a
-                        href={googleMapsLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
+                  {serve.notes && (
+                    <div className="space-y-1 text-xs pt-2">
+                      <p className="font-medium">Notes</p>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{serve.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+              
+              <CardFooter className="pt-2">
+                <div className="flex w-full justify-between items-center">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{formatDate(serve.timestamp)}</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    {onEdit && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0"
+                        onClick={() => onEdit(serve)}
                       >
-                        {formatCoordinates(serve.coordinates)}
-                      </a>
-                    ) : (
-                      <p className="text-muted-foreground truncate">{formatCoordinates(serve.coordinates)}</p>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    
+                    {onDelete && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 hover:text-destructive"
+                        onClick={() => onDelete(serve.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 </div>
-                
-                {serve.notes && (
-                  <div className="space-y-1 text-xs pt-2">
-                    <p className="font-medium">Notes</p>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{serve.notes}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            
-            <CardFooter className="pt-2">
-              <div className="flex w-full justify-between items-center">
-                <div className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>{formatDate(serve.timestamp)}</span>
-                </div>
-                
-                <div className="flex gap-2">
-                  {onEdit && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0"
-                      onClick={() => onEdit(serve)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                  )}
-                  
-                  {onDelete && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 w-8 p-0 hover:text-destructive"
-                      onClick={() => onDelete(serve.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardFooter>
-          </Card>
-        );
-      })}
+              </CardFooter>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 };

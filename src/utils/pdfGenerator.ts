@@ -68,23 +68,21 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
       ];
       
       if (data.serveAttempts && data.serveAttempts.length > 0) {
-        const successfulAttempt = data.serveAttempts.find(attempt => attempt.status === 'completed');
-        const attemptToUse = successfulAttempt || data.serveAttempts[data.serveAttempts.length - 1];
-        
-        if (attemptToUse.timestamp) {
-          const date = new Date(attemptToUse.timestamp);
-          content.push(`Service Date: ${date.toLocaleDateString()}`);
-          content.push(`Service Time: ${date.toLocaleTimeString()}`);
-        }
-        
-        content.push(`Status: ${attemptToUse.status === 'completed' ? 'Successfully Served' : 'Attempted Service'}`);
-        
-        if (attemptToUse.notes) {
-          content.push(`Notes: ${attemptToUse.notes}`);
-        }
+        data.serveAttempts.forEach((attempt, index) => {
+          content.push(`Attempt ${index + 1}:`);
+          if (attempt.timestamp) {
+            const date = new Date(attempt.timestamp);
+            content.push(`  Date: ${date.toLocaleDateString()}`);
+            content.push(`  Time: ${date.toLocaleTimeString()}`);
+          }
+          content.push(`  Status: ${attempt.status === 'completed' ? 'Successfully Served' : 'Attempted Service'}`);
+          if (attempt.notes) {
+            content.push(`  Notes: ${attempt.notes}`);
+          }
+          content.push('');
+        });
       }
       
-      content.push('');
       content.push(`Affidavit Date: ${new Date().toLocaleDateString()}`);
       
       content.forEach((line) => {
@@ -104,7 +102,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         const fields = form.getFields();
         console.log('Available form fields:', fields.map(field => field.getName()));
         
-        // Try common field names for case information
+        // Helper function to fill text fields
         const tryFillField = (fieldNames: string[], value: string) => {
           for (const fieldName of fieldNames) {
             try {
@@ -120,35 +118,104 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           }
           return false;
         };
-        
-        // Fill case number
-        tryFillField(['case_number', 'caseNumber', 'Case Number', 'case', 'number'], data.caseNumber || '');
-        
-        // Fill case name
-        tryFillField(['case_name', 'caseName', 'Case Name', 'title'], data.caseName || '');
-        
-        // Fill defendant name
-        tryFillField(['defendant_name', 'defendantName', 'Defendant', 'name', 'party_name'], data.clientName || '');
-        
-        // Fill defendant address
-        tryFillField(['defendant_address', 'defendantAddress', 'address', 'location'], data.clientAddress || '');
-        
-        // Fill service information
-        if (data.serveAttempts && data.serveAttempts.length > 0) {
-          const successfulAttempt = data.serveAttempts.find(attempt => attempt.status === 'completed');
-          const attemptToUse = successfulAttempt || data.serveAttempts[data.serveAttempts.length - 1];
-          
-          if (attemptToUse.timestamp) {
-            const date = new Date(attemptToUse.timestamp);
-            tryFillField(['service_date', 'serviceDate', 'date_served', 'date'], date.toLocaleDateString());
-            tryFillField(['service_time', 'serviceTime', 'time_served', 'time'], date.toLocaleTimeString());
+
+        // Helper function to check checkboxes
+        const tryCheckField = (fieldNames: string[]) => {
+          for (const fieldName of fieldNames) {
+            try {
+              const field = form.getCheckBox(fieldName);
+              if (field) {
+                field.check();
+                console.log(`Checked field: ${fieldName}`);
+                return true;
+              }
+            } catch (e) {
+              // Field doesn't exist or isn't a checkbox, continue
+            }
           }
+          return false;
+        };
+        
+        // Fill case information
+        tryFillField(['Case Number'], data.caseNumber || '');
+        tryFillField(['Plaintiff/Petitioner'], data.caseName || '');
+        
+        // Fill defendant/person being served information
+        tryFillField(['Name of Person/Entity Being Served', 'Defendant/Respondent'], data.clientName || '');
+        
+        // Parse address for residence fields
+        if (data.clientAddress) {
+          // Try to fill the full address first
+          tryFillField(['Residence address'], data.clientAddress);
           
-          const method = attemptToUse.status === 'completed' ? 'Personal Service' : 'Attempted Service';
-          tryFillField(['service_method', 'serviceMethod', 'method', 'how_served'], method);
+          // Try to split address for city/state field
+          const addressParts = data.clientAddress.split(',');
+          if (addressParts.length >= 2) {
+            const cityState = addressParts.slice(-2).join(',').trim();
+            tryFillField(['Residence City and state'], cityState);
+          }
+        }
+
+        // Check residence checkbox since we're serving at residence
+        tryCheckField(['Residence Checkbox']);
+        
+        // Fill service attempt information
+        if (data.serveAttempts && data.serveAttempts.length > 0) {
+          // Sort attempts by timestamp to get chronological order
+          const sortedAttempts = [...data.serveAttempts].sort((a, b) => {
+            const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return dateA - dateB;
+          });
+
+          // Fill up to 5 service attempts (based on available fields)
+          sortedAttempts.slice(0, 5).forEach((attempt, index) => {
+            if (attempt.timestamp) {
+              const date = new Date(attempt.timestamp);
+              const dateStr = date.toLocaleDateString();
+              const timeStr = date.toLocaleTimeString();
+              
+              // Fill service attempt dates and times
+              if (index === 0) {
+                tryFillField(['Service attempt 1 Date'], dateStr);
+                tryFillField(['Service attempt 1 time'], timeStr);
+              } else if (index === 1) {
+                tryFillField(['Service attempt 2 Date'], dateStr);
+                tryFillField(['Service attempt 2 time'], timeStr);
+              } else if (index === 2) {
+                tryFillField(['Service attempt3 date'], dateStr);
+                tryFillField(['Service attempt 3 time'], timeStr);
+              } else if (index === 3) {
+                tryFillField(['Service attempt number 4'], dateStr);
+                tryFillField(['Service attempt 4 time'], timeStr);
+              } else if (index === 4) {
+                tryFillField(['Service attempt5 Date'], dateStr);
+                tryFillField(['Service attempt 5 time'], timeStr);
+              }
+            }
+          });
+
+          // Use the most recent successful attempt for main service details, or last attempt if none successful
+          const successfulAttempt = sortedAttempts.find(attempt => attempt.status === 'completed');
+          const mainAttempt = successfulAttempt || sortedAttempts[sortedAttempts.length - 1];
           
-          if (attemptToUse.notes) {
-            tryFillField(['service_notes', 'serviceNotes', 'notes', 'description', 'details'], attemptToUse.notes);
+          if (mainAttempt.timestamp) {
+            const date = new Date(mainAttempt.timestamp);
+            tryFillField(['Service Date'], date.toLocaleDateString());
+            tryFillField(['Service Time'], date.toLocaleTimeString());
+          }
+
+          // Check appropriate service method
+          if (successfulAttempt) {
+            tryCheckField(['Personal check box']); // Personal service if successful
+          } else {
+            // If no successful service, check appropriate failure reason
+            const lastAttempt = sortedAttempts[sortedAttempts.length - 1];
+            if (lastAttempt.notes && lastAttempt.notes.toLowerCase().includes('not home')) {
+              tryCheckField(['Unknown at address']);
+            } else {
+              tryCheckField(['Unable to serve in a timely fashion']);
+            }
           }
         }
         

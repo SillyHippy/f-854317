@@ -59,7 +59,7 @@ export const diagnosticEmailTest = async (recipientEmail: string): Promise<{
   try {
     console.log("Diagnostic: Trying Appwrite Function...");
     const response = await appwrite.functions.createExecution(
-      appwrite.EMAIL_FUNCTION_ID, // Function ID for email sending
+      "67ec44660011c13116cd", // Function ID for email sending
       JSON.stringify({
         to: [recipientEmail],
         subject: testSubject + " (Method 2: Appwrite Function)",

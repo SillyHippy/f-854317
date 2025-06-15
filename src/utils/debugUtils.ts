@@ -42,7 +42,7 @@ export function initializeDebugTools() {
   window.fixClientIdsInServeAttempts = async function() {
     try {
       const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || "67eae6fe0020c6721531";
-      const collectionId = import.meta.env.VITE_APPWRITE_SERVE_ATTEMPTS_COLLECTION_ID || "684c14fb002f6275b932";
+      const collectionId = import.meta.env.VITE_APPWRITE_SERVE_ATTEMPTS_COLLECTION_ID || "67eae7ef8034c7ad35f6";
 
       console.log("Debug: databaseId =", databaseId);
       console.log("Debug: collectionId =", collectionId);

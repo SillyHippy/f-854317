@@ -20,7 +20,6 @@ const SERVE_ATTEMPTS_COLLECTION_ID = APPWRITE_CONFIG.collections.serveAttempts;
 const CASES_COLLECTION_ID = APPWRITE_CONFIG.collections.clientCases;
 const DOCUMENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clientDocuments;
 const STORAGE_BUCKET_ID = APPWRITE_CONFIG.storageBucket;
-const EMAIL_FUNCTION_ID = APPWRITE_CONFIG.functions.emailer;
 
 export const appwrite = {
   client,
@@ -36,7 +35,6 @@ export const appwrite = {
   CASES_COLLECTION_ID,
   DOCUMENTS_COLLECTION_ID,
   STORAGE_BUCKET_ID,
-  EMAIL_FUNCTION_ID,
 
   async sendMessage(payload, providerId, topicId) {
     try {
@@ -53,7 +51,7 @@ export const appwrite = {
 
       try {
         const result = await functions.createExecution(
-          EMAIL_FUNCTION_ID,
+          "sendEmail",
           JSON.stringify({
             subject: payload.subject,
             html: payload.content,
@@ -144,7 +142,7 @@ export const appwrite = {
       }
 
       const response = await functions.createExecution(
-        EMAIL_FUNCTION_ID, 
+        "67ed8899003a8b119a18", 
         JSON.stringify({ ...emailData, to: recipients })
       );
 

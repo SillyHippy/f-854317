@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ClientData } from "./ClientForm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CameraComponent from "./Camera";
@@ -52,6 +54,8 @@ export interface ServeAttemptData {
   caseNumber?: string;
   caseName?: string;
   address?: string;
+  serviceAddress?: string;
+  personEntityBeingServed?: string;
   physicalDescription?: PhysicalDescriptionData;
 }
 
@@ -68,6 +72,7 @@ interface ClientCase {
   workAddress?: string;
   clientId?: string;
   clientName?: string;
+  personEntityBeingServed?: string;
 }
 
 const serveAttemptSchema = z.object({
@@ -75,6 +80,8 @@ const serveAttemptSchema = z.object({
   caseNumber: z.string().min(1, { message: "Please select a case" }),
   notes: z.string().optional(),
   status: z.enum(["completed", "failed"]),
+  serviceAddress: z.string().min(1, { message: "Please enter or select a service address" }),
+  personEntityBeingServed: z.string().min(1, { message: "Please enter the person/entity being served" }),
 });
 
 type ServeFormValues = z.infer<typeof serveAttemptSchema>;
@@ -89,7 +96,8 @@ const filterCases = (cases: ClientCase[], query: string) => {
       c.caseName?.toLowerCase().includes(lowerQuery) || 
       c.homeAddress?.toLowerCase().includes(lowerQuery) || 
       c.workAddress?.toLowerCase().includes(lowerQuery) || 
-      c.clientName?.toLowerCase().includes(lowerQuery)
+      c.clientName?.toLowerCase().includes(lowerQuery) ||
+      c.personEntityBeingServed?.toLowerCase().includes(lowerQuery)
   );
 };
 
@@ -111,6 +119,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   const [isLoadingCases, setIsLoadingCases] = useState(false);
   const [caseAttemptCount, setCaseAttemptCount] = useState(0);
   const [physicalDescription, setPhysicalDescription] = useState<PhysicalDescriptionData | undefined>();
+  const [useHomeAddress, setUseHomeAddress] = useState(false);
+  const [useWorkAddress, setUseWorkAddress] = useState(false);
+  const [gpsAddress, setGpsAddress] = useState<string>("");
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
@@ -121,8 +132,26 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       caseNumber: "",
       notes: "",
       status: "completed",
+      serviceAddress: "",
+      personEntityBeingServed: "",
     },
   });
+
+  // Reverse geocode GPS coordinates to get address
+  const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const response = await fetch(
+        `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=YOUR_OPENCAGE_API_KEY`
+      );
+      const data = await response.json();
+      if (data.results && data.results.length > 0) {
+        return data.results[0].formatted;
+      }
+    } catch (error) {
+      console.error("Reverse geocoding failed:", error);
+    }
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
 
   useEffect(() => {
     const fetchAllCases = async () => {
@@ -140,6 +169,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
               workAddress: caseItem.work_address,
               clientId: client.id,
               clientName: client.name,
+              personEntityBeingServed: caseItem.person_entity_being_served || caseItem.case_name,
             }))
           );
         }
@@ -175,6 +205,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
               workAddress: caseItem.work_address,
               clientId: selectedClient.id,
               clientName: selectedClient.name,
+              personEntityBeingServed: caseItem.person_entity_being_served || caseItem.case_name,
             }));
 
           setClientCases(activeCases);
@@ -221,7 +252,8 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         c.caseName?.toLowerCase().includes(lowerQuery) ||
         c.homeAddress?.toLowerCase().includes(lowerQuery) ||
         c.workAddress?.toLowerCase().includes(lowerQuery) ||
-        c.clientName?.toLowerCase().includes(lowerQuery)
+        c.clientName?.toLowerCase().includes(lowerQuery) ||
+        c.personEntityBeingServed?.toLowerCase().includes(lowerQuery)
     );
   }, [addressSearchTerm, clientCases, allCases, selectedClient]);
 
@@ -230,14 +262,22 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     setSelectedClient(client || null);
     form.setValue("clientId", clientId);
     form.setValue("caseNumber", "");
+    form.setValue("serviceAddress", "");
+    form.setValue("personEntityBeingServed", "");
     setSelectedCase(null);
     setAddressSearchTerm("");
+    setUseHomeAddress(false);
+    setUseWorkAddress(false);
   };
 
   const handleCaseChange = async (caseNumber: string) => {
     const caseItem = clientCases.find(c => c.caseNumber === caseNumber) || null;
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseNumber);
+    
+    if (caseItem?.personEntityBeingServed) {
+      form.setValue("personEntityBeingServed", caseItem.personEntityBeingServed);
+    }
     
     if (selectedClient?.id) {
       const count = await getServeAttemptsCount(selectedClient.id, caseNumber);
@@ -256,6 +296,11 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseItem.caseNumber);
+    
+    if (caseItem.personEntityBeingServed) {
+      form.setValue("personEntityBeingServed", caseItem.personEntityBeingServed);
+    }
+    
     if (caseItem.clientId) {
       form.setValue("clientId", caseItem.clientId);
       
@@ -269,9 +314,43 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     setAddressSearchOpen(false);
   };
 
-  const handleCameraCapture = (imageData: string, coords: GeolocationCoordinates) => {
+  const handleHomeAddressChange = (checked: boolean) => {
+    setUseHomeAddress(checked);
+    if (checked) {
+      setUseWorkAddress(false);
+      if (selectedCase?.homeAddress) {
+        form.setValue("serviceAddress", selectedCase.homeAddress);
+      }
+    } else {
+      form.setValue("serviceAddress", gpsAddress);
+    }
+  };
+
+  const handleWorkAddressChange = (checked: boolean) => {
+    setUseWorkAddress(checked);
+    if (checked) {
+      setUseHomeAddress(false);
+      if (selectedCase?.workAddress) {
+        form.setValue("serviceAddress", selectedCase.workAddress);
+      }
+    } else {
+      form.setValue("serviceAddress", gpsAddress);
+    }
+  };
+
+  const handleCameraCapture = async (imageData: string, coords: GeolocationCoordinates) => {
     setCapturedImage(imageData);
     setLocation(coords);
+    
+    // Get GPS address
+    const address = await reverseGeocode(coords.latitude, coords.longitude);
+    setGpsAddress(address);
+    
+    // Set GPS address as default if no other address is selected
+    if (!useHomeAddress && !useWorkAddress) {
+      form.setValue("serviceAddress", address);
+    }
+    
     setStep("confirm");
   };
 
@@ -328,9 +407,11 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         clientEmail: selectedClient.email || null,
         caseNumber: selectedCase.caseNumber,
         caseName: selectedCase.caseName || "Unknown Case",
+        personEntityBeingServed: data.personEntityBeingServed,
         imageData: imageWithGPS,
         coordinates: `${location.latitude},${location.longitude}`,
         address: selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available",
+        serviceAddress: data.serviceAddress,
         notes: finalNotes,
         timestamp: new Date(),
         status: data.status,
@@ -356,6 +437,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       setSelectedClient(null);
       setSelectedCase(null);
       setPhysicalDescription(undefined);
+      setUseHomeAddress(false);
+      setUseWorkAddress(false);
+      setGpsAddress("");
       setStep("select");
     } catch (error) {
       console.error("Error saving serve attempt:", error);
@@ -424,7 +508,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                               >
                                 <div className="flex flex-col w-full">
                                   <span className="font-medium">
-                                    {caseItem.caseName || caseItem.caseNumber}
+                                    {caseItem.personEntityBeingServed || caseItem.caseName || caseItem.caseNumber}
                                   </span>
                                   {caseItem.clientName && (
                                     <span className="text-xs text-muted-foreground truncate">
@@ -537,7 +621,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                                   <SelectContent>
                                     {clientCases.map(c => (
                                       <SelectItem key={c.caseNumber} value={c.caseNumber}>
-                                        {c.caseName || c.caseNumber}
+                                        {c.personEntityBeingServed || c.caseName || c.caseNumber}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -547,6 +631,27 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                             </FormItem>
                           )}
                         />
+
+                        {selectedCase && (
+                          <>
+                            <FormField
+                              control={form.control}
+                              name="personEntityBeingServed"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Person/Entity Being Served</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      placeholder="Enter person/entity being served"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </>
+                        )}
                       </>
                     ) : (
                       <div className="text-sm text-center p-3 bg-accent/30 rounded-md">
@@ -557,7 +662,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
 
                     {selectedCase && (selectedCase.homeAddress || selectedCase.workAddress) && (
                       <div className="space-y-2 p-3 rounded-md bg-accent/20">
-                        <p className="text-sm font-medium">{selectedCase.caseName || selectedCase.caseNumber}</p>
+                        <p className="text-sm font-medium">{selectedCase.personEntityBeingServed || selectedCase.caseName || selectedCase.caseNumber}</p>
                         <p className="text-xs bg-primary/10 text-primary p-1 px-2 rounded-full inline-block">
                           Attempt #{caseAttemptCount + 1}
                         </p>
@@ -649,9 +754,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                   <div className="mb-4">
                     <p className="text-sm font-medium">Client: {selectedClient.name}</p>
                     <p className="text-xs text-muted-foreground">Address: {selectedClient.address}</p>
-                    {selectedCase && selectedCase.caseName && (
+                    {selectedCase && selectedCase.personEntityBeingServed && (
                       <>
-                        <p className="text-xs text-muted-foreground">Case: {selectedCase.caseName}</p>
+                        <p className="text-xs text-muted-foreground">Person/Entity: {selectedCase.personEntityBeingServed}</p>
                         <p className="text-xs bg-primary/10 text-primary mt-1 p-1 px-2 rounded-full inline-block">
                           Attempt #{caseAttemptCount + 1}
                         </p>
@@ -677,6 +782,56 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                     Accuracy: ±{Math.round(location.accuracy)}m
                   </div>
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="serviceAddress"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service Address</FormLabel>
+                      <FormControl>
+                        <div className="space-y-2">
+                          <Input 
+                            placeholder="Enter service address"
+                            {...field}
+                          />
+                          <div className="flex flex-col gap-2">
+                            {gpsAddress && (
+                              <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
+                                GPS Address: {gpsAddress}
+                              </div>
+                            )}
+                            {selectedCase?.homeAddress && (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="homeAddress"
+                                  checked={useHomeAddress}
+                                  onCheckedChange={handleHomeAddressChange}
+                                />
+                                <Label htmlFor="homeAddress" className="text-xs cursor-pointer">
+                                  Use Home Address: {selectedCase.homeAddress}
+                                </Label>
+                              </div>
+                            )}
+                            {selectedCase?.workAddress && (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="workAddress"
+                                  checked={useWorkAddress}
+                                  onCheckedChange={handleWorkAddressChange}
+                                />
+                                <Label htmlFor="workAddress" className="text-xs cursor-pointer">
+                                  Use Work Address: {selectedCase.workAddress}
+                                </Label>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}

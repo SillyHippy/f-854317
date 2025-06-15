@@ -39,7 +39,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   const displayPlaintiff = plaintiffPetitioner || 'Not specified';
   const displayDefendant = defendantRespondent || 'Not specified';
   const displayPersonBeingServed = firstServe?.caseName || caseName || 'Unknown';
-  const displayServiceAddress = firstServe?.service_address || firstServe?.address || 'Not specified';
+  const displayServiceAddress = firstServe?.serviceAddress || firstServe?.address || 'Not specified';
   const displayCaseNumber = caseNumber || firstServe?.caseNumber || 'N/A';
 
   console.log('AffidavitGenerator data:', {

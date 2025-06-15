@@ -42,7 +42,7 @@ export default function Clients() {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const clientList = await appwrite.listClients();
+      const clientList = await appwrite.getClients();
       setClients(clientList);
     } catch (error) {
       console.error("Error fetching clients:", error);

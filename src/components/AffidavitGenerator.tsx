@@ -31,21 +31,16 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
-  // Extract data from serves and client cases
+  // Extract data from serves
   const firstServe = serves[0];
   
-  // Try to get case info from client cases if available
-  const clientCase = client?.cases?.find(c => 
-    c.case_number === caseNumber || c.case_number === firstServe?.caseNumber
-  );
-  
-  // Use provided props first, then fall back to case data, then serve data
-  const displayCourtName = courtName || clientCase?.court_name || firstServe?.courtName || 'Not specified';
-  const displayPlaintiff = plaintiffPetitioner || clientCase?.plaintiff_petitioner || firstServe?.plaintiffPetitioner || 'Not specified';
-  const displayDefendant = defendantRespondent || clientCase?.defendant_respondent || firstServe?.defendantRespondent || 'Not specified';
-  const displayPersonBeingServed = firstServe?.personEntityBeingServed || caseName || clientCase?.case_name || 'Unknown';
-  const displayServiceAddress = firstServe?.serviceAddress || firstServe?.address || 'Not specified';
-  const displayCaseNumber = caseNumber || firstServe?.caseNumber || clientCase?.case_number || 'N/A';
+  // Use provided props first, then fall back to serve data
+  const displayCourtName = courtName || 'Not specified';
+  const displayPlaintiff = plaintiffPetitioner || 'Not specified';
+  const displayDefendant = defendantRespondent || 'Not specified';
+  const displayPersonBeingServed = firstServe?.caseName || caseName || 'Unknown';
+  const displayServiceAddress = firstServe?.service_address || firstServe?.address || 'Not specified';
+  const displayCaseNumber = caseNumber || firstServe?.caseNumber || 'N/A';
 
   console.log('AffidavitGenerator data:', {
     courtName: displayCourtName,
@@ -54,7 +49,6 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
     personBeingServed: displayPersonBeingServed,
     serviceAddress: displayServiceAddress,
     caseNumber: displayCaseNumber,
-    clientCase,
     firstServe
   });
 

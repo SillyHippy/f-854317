@@ -1,4 +1,3 @@
-
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import { ServeAttemptData } from '@/components/ServeAttempt';
 
@@ -7,6 +6,7 @@ export interface AffidavitData {
   clientAddress: string;
   caseNumber: string;
   caseName?: string;
+  courtName?: string;
   serveAttempts: ServeAttemptData[];
 }
 
@@ -102,8 +102,10 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         const fields = form.getFields();
         console.log('Available form fields:', fields.map(field => field.getName()));
         
-        // Helper function to fill text fields
-        const tryFillField = (fieldNames: string[], value: string) => {
+        // Helper function to fill text fields only if value exists
+        const tryFillField = (fieldNames: string[], value: string | undefined) => {
+          if (!value || value.trim() === '') return false;
+          
           for (const fieldName of fieldNames) {
             try {
               const field = form.getTextField(fieldName);
@@ -136,23 +138,34 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           return false;
         };
         
-        // Fill case information - case number should go in the case number field
-        tryFillField(['Case Number', 'case_number', 'caseNumber'], data.caseNumber || '');
+        // Fill case number if available
+        if (data.caseNumber) {
+          tryFillField(['Case Number', 'case_number', 'caseNumber'], data.caseNumber);
+        }
         
-        // Fill plaintiff/petitioner with case name (NOT the person being served)
-        tryFillField(['Plaintiff/Petitioner', 'plaintiff', 'petitioner'], data.caseName || '');
+        // Fill plaintiff/petitioner with case name only if available
+        if (data.caseName) {
+          tryFillField(['Plaintiff/Petitioner', 'plaintiff', 'petitioner'], data.caseName);
+        }
         
-        // Fill defendant/person being served information - this is the CLIENT NAME
-        tryFillField([
-          'Name of Person/Entity Being Served', 
-          'Defendant/Respondent', 
-          'defendant', 
-          'respondent',
-          'person_being_served',
-          'entity_being_served'
-        ], data.clientName || '');
+        // Fill court name if available
+        if (data.courtName) {
+          tryFillField(['Court', 'court_name', 'NAME OF COURT'], data.courtName);
+        }
         
-        // Parse address for residence fields
+        // Fill defendant/respondent with the person being served
+        if (data.clientName) {
+          tryFillField([
+            'Defendant/Respondent', 
+            'defendant', 
+            'respondent',
+            'Name of Person/Entity Being Served',
+            'person_being_served',
+            'entity_being_served'
+          ], data.clientName);
+        }
+        
+        // Parse and fill address information
         if (data.clientAddress) {
           // Fill the full address in residence address field
           tryFillField([
@@ -179,13 +192,15 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           }
         }
 
-        // Check residence checkbox since we're serving at residence
-        tryCheckField([
-          'Residence Checkbox', 
-          'residence_checkbox', 
-          'residence_check',
-          'Residence'
-        ]);
+        // Only check residence checkbox if we have an address
+        if (data.clientAddress) {
+          tryCheckField([
+            'Residence Checkbox', 
+            'residence_checkbox', 
+            'residence_check',
+            'Residence'
+          ]);
+        }
         
         // Fill service attempt information
         if (data.serveAttempts && data.serveAttempts.length > 0) {
@@ -196,42 +211,59 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             return dateA - dateB;
           });
 
-          // Fill up to 5 service attempts based on the form structure
+          // Fill up to 5 service attempts
           sortedAttempts.slice(0, 5).forEach((attempt, index) => {
             if (attempt.timestamp) {
               const date = new Date(attempt.timestamp);
               const dateStr = date.toLocaleDateString();
               const timeStr = date.toLocaleTimeString();
               
-              // Fill service attempt dates and times in the Service Attempts section
               const attemptNum = index + 1;
               tryFillField([`Service attempt ${attemptNum} Date`, `attempt_${attemptNum}_date`], dateStr);
               tryFillField([`Service attempt ${attemptNum} time`, `attempt_${attemptNum}_time`], timeStr);
+              
+              // Fill attempt description/notes if available
+              if (attempt.notes) {
+                tryFillField([
+                  `Service attempt ${attemptNum} description`,
+                  `attempt_${attemptNum}_description`,
+                  `attempt_${attemptNum}_notes`
+                ], attempt.notes);
+              }
             }
           });
 
-          // Use the most recent successful attempt for main service details, or last attempt if none successful
+          // Use the most recent successful attempt for main service details
           const successfulAttempt = sortedAttempts.find(attempt => attempt.status === 'completed');
           const mainAttempt = successfulAttempt || sortedAttempts[sortedAttempts.length - 1];
           
-          // Fill the main service date and time (On DATE AT TIME section)
-          if (mainAttempt.timestamp) {
-            const date = new Date(mainAttempt.timestamp);
+          // Fill the main service date and time only if we have a successful service
+          if (successfulAttempt && successfulAttempt.timestamp) {
+            const date = new Date(successfulAttempt.timestamp);
             tryFillField(['DATE', 'service_date', 'On'], date.toLocaleDateString());
             tryFillField(['TIME', 'service_time', 'AT'], date.toLocaleTimeString());
           }
 
-          // Determine and check appropriate service method based on attempt status
+          // Service method logic - only check if we have clear indication
           if (successfulAttempt) {
-            // If we have a successful attempt, check Personal service
+            // Only check Personal service if we have a successful attempt
             tryCheckField([
               'Personal check box', 
               'Personal', 
               'personal_service',
               'personal_checkbox'
             ]);
+            
+            // Fill service description if notes are available
+            if (successfulAttempt.notes) {
+              tryFillField([
+                'Service description',
+                'service_description',
+                'description'
+              ], successfulAttempt.notes);
+            }
           } else {
-            // If no successful service, determine reason based on notes or default to unable to serve
+            // If no successful service, check appropriate reason based on notes
             const lastAttempt = sortedAttempts[sortedAttempts.length - 1];
             if (lastAttempt.notes) {
               const notes = lastAttempt.notes.toLowerCase();
@@ -244,17 +276,25 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               } else {
                 tryCheckField(['Unable to Serve in Timely Fashion', 'unable_to_serve_timely']);
               }
-            } else {
-              tryCheckField(['Unable to Serve in Timely Fashion', 'unable_to_serve_timely']);
+              
+              // Fill description for unsuccessful service
+              tryFillField([
+                'Service description',
+                'service_description',
+                'description'
+              ], lastAttempt.notes);
             }
           }
 
-          // Check if we should inquire about military service
-          tryCheckField([
-            'Inquired if subject was a member of the U.S. Military and was informed they are not.',
-            'military_inquiry',
-            'us_military_check'
-          ]);
+          // Military inquiry - this should be a question asked during service
+          // Only check if we have indication that military status was inquired about
+          if (successfulAttempt) {
+            tryCheckField([
+              'Inquired if subject was a member of the U.S. Military and was informed they are not.',
+              'military_inquiry',
+              'us_military_check'
+            ]);
+          }
         }
         
         // Fill affidavit date
@@ -265,8 +305,8 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           'sworn_date'
         ], new Date().toLocaleDateString());
         
-        // Flatten the form to make it non-editable
-        form.flatten();
+        // DO NOT flatten the form - keep it fillable
+        // form.flatten(); // Commented out to keep form fillable
         
       } catch (formError) {
         console.error('Error filling form fields:', formError);

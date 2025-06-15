@@ -151,13 +151,19 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         
         // Fill "NAME OF PERSON / ENTITY BEING SERVED" field - NEVER put this in PLAINTIFF/PETITIONER
         if (data.personEntityBeingServed) {
-          tryFillField([
+          const filled = tryFillField([
+            'Name of Person/Entity Being Served',
             'NAME OF PERSON / ENTITY BEING SERVED',
             'NAME OF PERSON/ENTITY BEING SERVED',
             'person_being_served',
             'entity_being_served',
-            'name_of_person_entity_being_served'
+            'name_of_person_entity_being_served',
+            'Name of PersonEntity Being Served'
           ], data.personEntityBeingServed);
+          
+          if (!filled) {
+            console.log('Could not find field for person being served. Available fields:', fields.map(f => f.getName()));
+          }
         }
         
         // Use the actual service address from the serve attempts, not the client address
@@ -207,19 +213,28 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               
               const attemptNum = index + 1;
               
-              // Fill Service Attempts section with BOTH dates and times
-              tryFillField([
+              // Try multiple variations for date fields
+              const dateFilled = tryFillField([
+                `(${attemptNum}) DATE`,
+                `(${attemptNum})_DATE`,
                 `Service attempt ${attemptNum} Date`, 
                 `attempt_${attemptNum}_date`,
                 `Service Attempts: Service was attempted on: (${attemptNum})`,
-                `(${attemptNum})_DATE`
+                `${attemptNum} DATE`,
+                `${attemptNum}_DATE`
               ], dateStr);
               
-              tryFillField([
+              // Try multiple variations for time fields
+              const timeFilled = tryFillField([
+                `(${attemptNum}) TIME`,
+                `(${attemptNum})_TIME`,
                 `Service attempt ${attemptNum} time`, 
                 `attempt_${attemptNum}_time`,
-                `(${attemptNum})_TIME`
+                `${attemptNum} TIME`,
+                `${attemptNum}_TIME`
               ], timeStr);
+              
+              console.log(`Attempt ${attemptNum}: Date filled: ${dateFilled}, Time filled: ${timeFilled}`);
             }
           });
 

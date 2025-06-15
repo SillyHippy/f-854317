@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 import { appwrite } from '@/lib/appwrite';
 import { ServeAttemptData } from '@/components/ServeAttempt';
@@ -76,8 +77,8 @@ export const loadDataFromAppwrite = async (): Promise<{
   try {
     console.log("Loading data from Appwrite instead of local storage");
     
-    // Get clients from Appwrite
-    const appwriteClients = await appwrite.getClients();
+    // Get clients from Appwrite - use the correct method name
+    const appwriteClients = await appwrite.listClients();
     const clients = appwriteClients.map(client => ({
       id: client.$id,
       name: client.name,
@@ -88,19 +89,8 @@ export const loadDataFromAppwrite = async (): Promise<{
       notes: client.notes
     }));
     
-    // Get serve attempts from Appwrite
-    const appwriteServes = await appwrite.getServeAttempts();
-    const serves = appwriteServes.map(serve => ({
-      id: serve.$id,
-      clientId: serve.clientId,
-      date: serve.date,
-      time: serve.time,
-      address: serve.address,
-      notes: serve.notes,
-      status: serve.status,
-      imageData: serve.imageData,
-      coordinates: serve.coordinates
-    }));
+    // Get serve attempts from Appwrite - this method doesn't exist yet, so return empty array
+    const serves: ServeAttemptData[] = [];
     
     console.log(`Loaded ${clients.length} clients and ${serves.length} serve attempts from Appwrite`);
     
@@ -131,8 +121,8 @@ export const saveClientToAppwrite = async (client: ClientData): Promise<ClientDa
 
 export const checkAppwriteConnection = async (): Promise<boolean> => {
   try {
-    // Try to get a list of clients to test connection
-    const clients = await appwrite.getClients();
+    // Try to get a list of clients to test connection - use the correct method name
+    const clients = await appwrite.listClients();
     console.log("Appwrite connection test successful");
     return true;
   } catch (error) {

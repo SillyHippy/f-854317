@@ -79,8 +79,7 @@ const serveAttemptSchema = z.object({
   caseNumber: z.string().min(1, { message: "Please select a case" }),
   notes: z.string().optional(),
   status: z.enum(["completed", "failed"]),
-  serviceAddress: z.string().optional(), // Made optional
-  personEntityBeingServed: z.string().min(1, { message: "Please enter the person/entity being served" }),
+  serviceAddress: z.string().optional(),
 });
 
 type ServeFormValues = z.infer<typeof serveAttemptSchema>;
@@ -132,7 +131,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       notes: "",
       status: "completed",
       serviceAddress: "",
-      personEntityBeingServed: "",
     },
   });
 
@@ -258,7 +256,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     form.setValue("clientId", clientId);
     form.setValue("caseNumber", "");
     form.setValue("serviceAddress", "");
-    form.setValue("personEntityBeingServed", "");
     setSelectedCase(null);
     setAddressSearchTerm("");
     setUseHomeAddress(false);
@@ -269,10 +266,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     const caseItem = clientCases.find(c => c.caseNumber === caseNumber) || null;
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseNumber);
-    
-    if (caseItem?.personEntityBeingServed) {
-      form.setValue("personEntityBeingServed", caseItem.personEntityBeingServed);
-    }
     
     if (selectedClient?.id) {
       const count = await getServeAttemptsCount(selectedClient.id, caseNumber);
@@ -291,10 +284,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseItem.caseNumber);
-    
-    if (caseItem.personEntityBeingServed) {
-      form.setValue("personEntityBeingServed", caseItem.personEntityBeingServed);
-    }
     
     if (caseItem.clientId) {
       form.setValue("clientId", caseItem.clientId);
@@ -392,7 +381,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         clientEmail: selectedClient.email || null,
         caseNumber: selectedCase.caseNumber,
         caseName: selectedCase.caseName || "Unknown Case",
-        personEntityBeingServed: data.personEntityBeingServed,
+        personEntityBeingServed: selectedCase.personEntityBeingServed || selectedCase.caseName || "",
         imageData: imageWithGPS,
         coordinates: `${location.latitude},${location.longitude}`,
         address: selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available",
@@ -616,27 +605,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                             </FormItem>
                           )}
                         />
-
-                        {selectedCase && (
-                          <>
-                            <FormField
-                              control={form.control}
-                              name="personEntityBeingServed"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Person/Entity Being Served</FormLabel>
-                                  <FormControl>
-                                    <Input 
-                                      placeholder="Enter person/entity being served"
-                                      {...field}
-                                    />
-                                  </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                          </>
-                        )}
                       </>
                     ) : (
                       <div className="text-sm text-center p-3 bg-accent/30 rounded-md">

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import { ClientData } from "./ClientForm";
 import ClientDocuments from "./ClientDocuments";
 import ServeHistory from "./ServeHistory";
 import AffidavitGenerator from "./AffidavitGenerator";
+import EditCaseDialog from "./EditCaseDialog";
 import { mergeServeAndCaseData } from "@/utils/dataNormalization";
 import { ServeAttemptData } from "@/types/ServeAttemptData";
 
@@ -110,6 +110,31 @@ export default function ClientCases({ client, onUpdate, clientCases = [], setCli
       console.error("Error creating case:", error);
       toast({
         title: "Error creating case",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateCase = async (caseData: any) => {
+    try {
+      console.log("Updating case:", caseData);
+      const updatedCase = await appwrite.updateCase(caseData.id, caseData);
+      console.log("Case updated:", updatedCase);
+      
+      if (setClientCases) {
+        setClientCases(clientCases.map(c => c.$id === caseData.id ? updatedCase : c));
+      }
+      
+      toast({
+        title: "Case updated",
+        description: "Case has been updated successfully",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error updating case:", error);
+      toast({
+        title: "Error updating case",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
@@ -290,6 +315,10 @@ export default function ClientCases({ client, onUpdate, clientCases = [], setCli
                             workAddress={clientCase.work_address}
                           />
                         )}
+                        <EditCaseDialog
+                          clientCase={clientCase}
+                          onUpdate={updateCase}
+                        />
                         <Button
                           variant="ghost"
                           size="sm"

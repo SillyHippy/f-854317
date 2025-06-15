@@ -7,6 +7,9 @@ export interface AffidavitData {
   caseNumber: string;
   caseName?: string;
   courtName?: string;
+  plaintiffPetitioner?: string;
+  defendantRespondent?: string;
+  personEntityBeingServed?: string;
   serveAttempts: ServeAttemptData[];
 }
 
@@ -138,34 +141,58 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           return false;
         };
         
-        // Fill case number if available
-        if (data.caseNumber) {
-          tryFillField(['Case Number', 'case_number', 'caseNumber'], data.caseNumber);
-        }
-        
-        // Fill plaintiff/petitioner with case name only if available
-        if (data.caseName) {
-          tryFillField(['Plaintiff/Petitioner', 'plaintiff', 'petitioner'], data.caseName);
-        }
-        
-        // Fill court name if available
+        // Fill court name only if available
         if (data.courtName) {
-          tryFillField(['Court', 'court_name', 'NAME OF COURT'], data.courtName);
+          tryFillField([
+            'Court', 
+            'court_name', 
+            'NAME OF COURT',
+            '(NAME OF COURT)'
+          ], data.courtName);
         }
         
-        // Fill defendant/respondent with the person being served
-        if (data.clientName) {
+        // Fill plaintiff/petitioner only if available
+        if (data.plaintiffPetitioner) {
+          tryFillField([
+            'Plaintiff/Petitioner', 
+            'plaintiff', 
+            'petitioner',
+            'PLAINTIFF/PETITIONER'
+          ], data.plaintiffPetitioner);
+        }
+        
+        // Fill defendant/respondent only if available
+        if (data.defendantRespondent) {
           tryFillField([
             'Defendant/Respondent', 
             'defendant', 
             'respondent',
-            'Name of Person/Entity Being Served',
-            'person_being_served',
-            'entity_being_served'
-          ], data.clientName);
+            'DEFENDANT/RESPONDENT'
+          ], data.defendantRespondent);
         }
         
-        // Parse and fill address information
+        // Fill case number if available
+        if (data.caseNumber) {
+          tryFillField([
+            'Case Number', 
+            'case_number', 
+            'caseNumber',
+            'CASE NUMBER'
+          ], data.caseNumber);
+        }
+        
+        // Fill NAME OF PERSON/ENTITY BEING SERVED - this should be the person being served, not the client
+        if (data.personEntityBeingServed) {
+          tryFillField([
+            'NAME OF PERSON / ENTITY BEING SERVED',
+            'NAME OF PERSON/ENTITY BEING SERVED',
+            'person_being_served',
+            'entity_being_served',
+            'name_of_person_entity_being_served'
+          ], data.personEntityBeingServed);
+        }
+        
+        // Parse and fill address information for the service location (not client address)
         if (data.clientAddress) {
           // Fill the full address in residence address field
           tryFillField([
@@ -211,7 +238,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             return dateA - dateB;
           });
 
-          // Fill up to 5 service attempts
+          // Fill up to 5 service attempts in the Service Attempts section
           sortedAttempts.slice(0, 5).forEach((attempt, index) => {
             if (attempt.timestamp) {
               const date = new Date(attempt.timestamp);
@@ -219,53 +246,60 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               const timeStr = date.toLocaleTimeString();
               
               const attemptNum = index + 1;
-              tryFillField([`Service attempt ${attemptNum} Date`, `attempt_${attemptNum}_date`], dateStr);
-              tryFillField([`Service attempt ${attemptNum} time`, `attempt_${attemptNum}_time`], timeStr);
               
-              // Fill attempt description/notes if available
-              if (attempt.notes) {
-                tryFillField([
-                  `Service attempt ${attemptNum} description`,
-                  `attempt_${attemptNum}_description`,
-                  `attempt_${attemptNum}_notes`
-                ], attempt.notes);
-              }
+              // Fill Service Attempts section
+              tryFillField([
+                `Service attempt ${attemptNum} Date`, 
+                `attempt_${attemptNum}_date`,
+                `Service Attempts: Service was attempted on: (${attemptNum})`,
+                `(${attemptNum})_DATE`
+              ], dateStr);
+              
+              tryFillField([
+                `Service attempt ${attemptNum} time`, 
+                `attempt_${attemptNum}_time`,
+                `(${attemptNum})_TIME`
+              ], timeStr);
             }
           });
 
-          // Use the most recent successful attempt for main service details
+          // Find the most recent successful attempt for main service details
           const successfulAttempt = sortedAttempts.find(attempt => attempt.status === 'completed');
           const mainAttempt = successfulAttempt || sortedAttempts[sortedAttempts.length - 1];
           
-          // Fill the main service date and time only if we have a successful service
+          // Fill the main service date and time (On___ AT___ fields)
           if (successfulAttempt && successfulAttempt.timestamp) {
             const date = new Date(successfulAttempt.timestamp);
-            tryFillField(['DATE', 'service_date', 'On'], date.toLocaleDateString());
-            tryFillField(['TIME', 'service_time', 'AT'], date.toLocaleTimeString());
+            tryFillField([
+              'DATE', 
+              'service_date', 
+              'On',
+              'On_'
+            ], date.toLocaleDateString());
+            
+            tryFillField([
+              'TIME', 
+              'service_time', 
+              'AT',
+              'AT_'
+            ], date.toLocaleTimeString());
           }
 
-          // Service method logic - only check if we have clear indication
+          // Service method logic - don't assume, leave as questions to be answered
+          // Only check Personal service if we have clear indication of successful personal service
           if (successfulAttempt) {
-            // Only check Personal service if we have a successful attempt
+            // Check Personal service for successful attempts
             tryCheckField([
               'Personal check box', 
               'Personal', 
               'personal_service',
-              'personal_checkbox'
+              'personal_checkbox',
+              'By personally delivering copies to the person being served'
             ]);
-            
-            // Fill service description if notes are available
-            if (successfulAttempt.notes) {
-              tryFillField([
-                'Service description',
-                'service_description',
-                'description'
-              ], successfulAttempt.notes);
-            }
           } else {
-            // If no successful service, check appropriate reason based on notes
+            // For unsuccessful attempts, check appropriate reason based on notes
             const lastAttempt = sortedAttempts[sortedAttempts.length - 1];
-            if (lastAttempt.notes) {
+            if (lastAttempt && lastAttempt.notes) {
               const notes = lastAttempt.notes.toLowerCase();
               if (notes.includes('not home') || notes.includes('no answer')) {
                 tryCheckField(['Unknown at Address', 'unknown_at_address']);
@@ -276,26 +310,26 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               } else {
                 tryCheckField(['Unable to Serve in Timely Fashion', 'unable_to_serve_timely']);
               }
-              
-              // Fill description for unsuccessful service
-              tryFillField([
-                'Service description',
-                'service_description',
-                'description'
-              ], lastAttempt.notes);
             }
           }
 
-          // Military inquiry - this should be a question asked during service
-          // Only check if we have indication that military status was inquired about
-          if (successfulAttempt) {
-            tryCheckField([
-              'Inquired if subject was a member of the U.S. Military and was informed they are not.',
-              'military_inquiry',
-              'us_military_check'
-            ]);
+          // Fill description field with notes from the main attempt
+          if (mainAttempt && mainAttempt.notes) {
+            tryFillField([
+              'Description',
+              'service_description',
+              'description',
+              'Description::'
+            ], mainAttempt.notes);
           }
         }
+        
+        // Don't auto-check military inquiry - leave as question to be answered manually
+        // tryCheckField([
+        //   'Inquired if subject was a member of the U.S. Military and was informed they are not.',
+        //   'military_inquiry',
+        //   'us_military_check'
+        // ]);
         
         // Fill affidavit date
         tryFillField([

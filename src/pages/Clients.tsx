@@ -134,7 +134,6 @@ export default function Clients() {
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
           <div className="flex gap-2">
-            <PDFTestDialog />
             <ResponsiveDialog
               trigger={
                 <Button>

@@ -34,6 +34,12 @@ export interface AffidavitData {
   serviceTime?: string;
   serviceAddress?: string;
   
+  // Previous attempts
+  previousAttempts?: Array<{
+    date?: string;
+    time?: string;
+  }>;
+  
   // Military inquiry
   militaryServiceInquired?: boolean;
   militaryInquiryDate?: string;
@@ -106,7 +112,19 @@ export class PDFService {
         // Military
         militaryInquiryDate: ['militaryInquiryDate', 'military_inquiry_date', 'Military Date', 'MILITARY_DATE'],
         militaryInquiryAddress: ['militaryInquiryAddress', 'military_inquiry_address', 'Military Address', 'MILITARY_ADDRESS'],
-        militaryServiceInquired: ['militaryServiceInquired', 'military_service_inquired', 'Military Inquiry', 'MILITARY_INQUIRY']
+        militaryServiceInquired: ['militaryServiceInquired', 'military_service_inquired', 'Military Inquiry', 'MILITARY_INQUIRY'],
+
+        // Previous attempts - try different numbering patterns
+        attempt1Date: ['attempt1_date', 'attempt_1_date', 'Attempt1Date', 'ATTEMPT1_DATE'],
+        attempt1Time: ['attempt1_time', 'attempt_1_time', 'Attempt1Time', 'ATTEMPT1_TIME'],
+        attempt2Date: ['attempt2_date', 'attempt_2_date', 'Attempt2Date', 'ATTEMPT2_DATE'],
+        attempt2Time: ['attempt2_time', 'attempt_2_time', 'Attempt2Time', 'ATTEMPT2_TIME'],
+        attempt3Date: ['attempt3_date', 'attempt_3_date', 'Attempt3Date', 'ATTEMPT3_DATE'],
+        attempt3Time: ['attempt3_time', 'attempt_3_time', 'Attempt3Time', 'ATTEMPT3_TIME'],
+        attempt4Date: ['attempt4_date', 'attempt_4_date', 'Attempt4Date', 'ATTEMPT4_DATE'],
+        attempt4Time: ['attempt4_time', 'attempt_4_time', 'Attempt4Time', 'ATTEMPT4_TIME'],
+        attempt5Date: ['attempt5_date', 'attempt_5_date', 'Attempt5Date', 'ATTEMPT5_DATE'],
+        attempt5Time: ['attempt5_time', 'attempt_5_time', 'Attempt5Time', 'ATTEMPT5_TIME']
       };
 
       // Fill text fields using the mapping
@@ -116,6 +134,21 @@ export class PDFService {
           this.fillFormFieldWithMapping(form, possibleFieldNames, String(value));
         }
       });
+
+      // Handle previous attempts specifically
+      if (data.previousAttempts && data.previousAttempts.length > 0) {
+        data.previousAttempts.forEach((attempt, index) => {
+          if (index < 5) { // Only handle up to 5 attempts as shown in the template
+            const attemptNum = index + 1;
+            if (attempt.date) {
+              this.fillFormFieldWithMapping(form, fieldMappings[`attempt${attemptNum}Date` as keyof typeof fieldMappings], attempt.date);
+            }
+            if (attempt.time) {
+              this.fillFormFieldWithMapping(form, fieldMappings[`attempt${attemptNum}Time` as keyof typeof fieldMappings], attempt.time);
+            }
+          }
+        });
+      }
 
       // Handle checkboxes specifically
       if (data.militaryServiceInquired !== undefined) {
@@ -136,12 +169,21 @@ export class PDFService {
   static async generateAffidavitFromServe(
     serveData: ServeAttemptData, 
     clientData: ClientData,
-    additionalData?: Partial<AffidavitData>
+    additionalData?: Partial<AffidavitData>,
+    previousAttempts?: ServeAttemptData[]
   ): Promise<Uint8Array> {
     console.log('Generating affidavit from serve data:', serveData);
     console.log('Client data:', clientData);
+    console.log('Previous attempts:', previousAttempts);
     
     const timestamp = new Date(serveData.timestamp);
+    
+    // Format previous attempts for the PDF
+    const formattedPreviousAttempts = previousAttempts?.map(attempt => ({
+      date: new Date(attempt.timestamp).toLocaleDateString('en-US'),
+      time: new Date(attempt.timestamp).toLocaleTimeString('en-US')
+    })) || [];
+
     const affidavitData: AffidavitData = {
       // Use case name or case number for the case name field
       caseName: serveData.caseName || serveData.caseNumber || 'Unknown Case',
@@ -151,11 +193,12 @@ export class PDFService {
       serverName: additionalData?.serverName || "Process Server",
       serverAddress: additionalData?.serverAddress || "",
       personServedName: clientData.name || 'Unknown Person',
-      relationshipToDefendant: additionalData?.relationshipToDefendant || "Defendant",
+      relationshipToDefendant: additionalData?.relationshipToDefendant || "",
       serviceMethod: serveData.status === 'completed' ? 'Personal Service' : 'Attempted Service',
       serviceDate: timestamp.toLocaleDateString('en-US'),
       serviceTime: timestamp.toLocaleTimeString('en-US'),
       serviceAddress: serveData.address || clientData.address || 'Unknown Address',
+      previousAttempts: formattedPreviousAttempts,
       militaryServiceInquired: additionalData?.militaryServiceInquired !== undefined ? additionalData.militaryServiceInquired : true,
       militaryInquiryDate: additionalData?.militaryInquiryDate || timestamp.toLocaleDateString('en-US'),
       militaryInquiryAddress: additionalData?.militaryInquiryAddress || "Military Records Office",

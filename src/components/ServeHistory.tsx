@@ -110,7 +110,20 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
         return;
       }
 
-      const pdfBytes = await PDFService.generateAffidavitFromServe(serve, client);
+      // Find previous attempts for the same case
+      const previousAttempts = serves.filter(s => 
+        s.caseNumber === serve.caseNumber && 
+        s.clientId === serve.clientId && 
+        s.id !== serve.id &&
+        new Date(s.timestamp) < new Date(serve.timestamp)
+      );
+
+      const pdfBytes = await PDFService.generateAffidavitFromServe(
+        serve, 
+        client, 
+        {}, 
+        previousAttempts
+      );
       const filename = `affidavit-${client.name.replace(/\s+/g, '-')}-${serve.caseNumber}-${Date.now()}.pdf`;
       PDFService.downloadPDF(pdfBytes, filename);
       

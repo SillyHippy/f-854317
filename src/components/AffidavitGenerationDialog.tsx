@@ -33,7 +33,7 @@ export default function AffidavitGenerationDialog({
     documentsToServe: "Summons and Complaint",
     serverName: "Process Server",
     serverAddress: "123 Server St, City, CA 90210",
-    relationshipToDefendant: "Defendant",
+    relationshipToDefendant: "", // Remove default "Defendant"
     age: "",
     sex: "",
     race: "",
@@ -154,9 +154,10 @@ export default function AffidavitGenerationDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="relationshipToDefendant">Relationship to Defendant</Label>
+              <Label htmlFor="relationshipToDefendant">Relationship to Party</Label>
               <Input
                 id="relationshipToDefendant"
+                placeholder="e.g., Defendant, Plaintiff, etc."
                 value={additionalData.relationshipToDefendant || ''}
                 onChange={(e) => handleInputChange('relationshipToDefendant', e.target.value)}
               />

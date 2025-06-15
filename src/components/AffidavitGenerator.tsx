@@ -26,7 +26,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [formData, setFormData] = useState({
-    personEntityBeingServed: client.name, // Default to client name
+    personEntityBeingServed: '', // Keep this field for user input
     caseNumber: caseNumber || '',
     caseName: caseName || ''
   });
@@ -40,6 +40,15 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   };
 
   const handleGenerateAffidavit = async () => {
+    if (!formData.personEntityBeingServed.trim()) {
+      toast({
+        title: "Required Field Missing",
+        description: "Please enter the name of the person/entity being served.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsGenerating(true);
     
     try {
@@ -48,7 +57,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         clientAddress: client.address,
         caseNumber: formData.caseNumber,
         caseName: formData.caseName || undefined,
-        personEntityBeingServed: formData.personEntityBeingServed.trim() || undefined,
+        personEntityBeingServed: formData.personEntityBeingServed.trim(),
         serveAttempts: serves
       };
 
@@ -87,12 +96,13 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="personEntityBeingServed">Person/Entity Being Served</Label>
+            <Label htmlFor="personEntityBeingServed">Person/Entity Being Served *</Label>
             <Input
               id="personEntityBeingServed"
               value={formData.personEntityBeingServed}
               onChange={(e) => handleInputChange('personEntityBeingServed', e.target.value)}
               placeholder="Enter person/entity being served"
+              required
             />
           </div>
 
@@ -106,7 +116,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
 
           <Button 
             onClick={handleGenerateAffidavit} 
-            disabled={isGenerating}
+            disabled={isGenerating || !formData.personEntityBeingServed.trim()}
             className="w-full"
           >
             {isGenerating ? (

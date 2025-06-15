@@ -1,3 +1,4 @@
+
 import { Account, Client, Databases, ID, Query } from 'appwrite';
 
 const projectID = '64f0547b6bb869c489dd';
@@ -73,7 +74,7 @@ const appwrite = {
                 DATABASE_ID,
                 COLLECTIONS.CLIENTS,
                 [
-                    Query.order('name', 'ASC')
+                    Query.orderAsc('name')
                 ]
             );
             console.log("Clients listed successfully:", response.documents);
@@ -127,7 +128,7 @@ const appwrite = {
                 COLLECTIONS.CLIENT_CASES,
                 [
                     Query.equal('client_id', clientId),
-                    Query.order('case_number', 'ASC')
+                    Query.orderAsc('case_number')
                 ]
             );
             console.log("Cases listed successfully:", response.documents);
@@ -154,7 +155,7 @@ const appwrite = {
                 image_data: serveData.imageData,
                 coordinates: serveData.coordinates,
                 address: serveData.address,
-                service_address: serveData.serviceAddress, // Map to correct field name
+                service_address: serveData.serviceAddress,
                 notes: serveData.notes,
                 timestamp: serveData.timestamp.toISOString(),
                 status: serveData.status,
@@ -211,7 +212,7 @@ const appwrite = {
                 COLLECTIONS.SERVE_ATTEMPTS,
                 [
                     Query.equal('client_id', clientId),
-                    Query.order('timestamp', 'DESC')
+                    Query.orderDesc('timestamp')
                 ]
             );
             console.log("Serve attempts listed successfully:", response.documents);

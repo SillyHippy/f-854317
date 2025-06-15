@@ -1,4 +1,3 @@
-
 import React from "react";
 import { 
   Card, 
@@ -9,8 +8,11 @@ import {
   CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2 } from "lucide-react";
+import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2, FileText } from "lucide-react";
 import { ServeAttemptData } from "@/components/ServeAttempt";
+import { ClientData } from "@/components/ClientForm";
+import { PDFService } from "@/utils/pdfService";
+import { useToast } from "@/hooks/use-toast";
 
 interface ServeHistoryProps {
   serves: ServeAttemptData[];
@@ -94,6 +96,39 @@ const formatCaseInfo = (caseNumber: string, caseName: string): string => {
 };
 
 const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, onEdit }) => {
+  const { toast } = useToast();
+
+  const handleGenerateAffidavit = async (serve: ServeAttemptData) => {
+    try {
+      const client = clients.find(c => c.id === serve.clientId || c.$id === serve.clientId);
+      if (!client) {
+        toast({
+          title: "Error",
+          description: "Client data not found for this serve attempt",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const pdfBytes = await PDFService.generateAffidavitFromServe(serve, client);
+      const filename = `affidavit-${client.name.replace(/\s+/g, '-')}-${serve.caseNumber}-${Date.now()}.pdf`;
+      PDFService.downloadPDF(pdfBytes, filename);
+      
+      toast({
+        title: "PDF Generated",
+        description: "Affidavit PDF has been generated and downloaded successfully.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast({
+        title: "PDF Generation Failed",
+        description: error instanceof Error ? error.message : "An unknown error occurred.",
+        variant: "destructive",
+      });
+    }
+  };
+
   console.log("ServeHistory component received serves:", serves);
   console.log("ServeHistory component received clients:", clients);
 
@@ -223,7 +258,17 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
                   <span>{formatDate(serve.timestamp)}</span>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => handleGenerateAffidavit(serve)}
+                    title="Generate Affidavit PDF"
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                  
                   {onEdit && (
                     <Button 
                       variant="ghost" 

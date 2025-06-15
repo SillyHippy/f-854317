@@ -1,4 +1,7 @@
+
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox } from 'pdf-lib';
+import { ServeAttemptData } from '@/components/ServeAttempt';
+import { ClientData } from '@/components/ClientForm';
 
 export interface AffidavitData {
   // Basic case info
@@ -105,6 +108,35 @@ export class PDFService {
       console.error('Error generating PDF:', error);
       throw new Error('Failed to generate PDF affidavit');
     }
+  }
+
+  static async generateAffidavitFromServe(
+    serveData: ServeAttemptData, 
+    clientData: ClientData,
+    additionalData?: Partial<AffidavitData>
+  ): Promise<Uint8Array> {
+    const timestamp = new Date(serveData.timestamp);
+    const affidavitData: AffidavitData = {
+      caseName: serveData.caseName || serveData.caseNumber,
+      courtName: additionalData?.courtName || "Superior Court",
+      documentsToServe: additionalData?.documentsToServe || "Legal Documents",
+      serverName: additionalData?.serverName || "Process Server",
+      serverAddress: additionalData?.serverAddress || "",
+      personServedName: clientData.name,
+      relationshipToDefendant: additionalData?.relationshipToDefendant || "Defendant",
+      serviceMethod: serveData.status === 'completed' ? 'Personal Service' : 'Attempted Service',
+      serviceDate: timestamp.toLocaleDateString(),
+      serviceTime: timestamp.toLocaleTimeString(),
+      serviceAddress: serveData.address || clientData.address,
+      militaryServiceInquired: additionalData?.militaryServiceInquired || false,
+      militaryInquiryDate: additionalData?.militaryInquiryDate || timestamp.toLocaleDateString(),
+      militaryInquiryAddress: additionalData?.militaryInquiryAddress || "",
+      substituteServiceLocation: additionalData?.substituteServiceLocation || "",
+      substituteServicePerson: additionalData?.substituteServicePerson || "",
+      ...additionalData
+    };
+
+    return this.generateAffidavit(affidavitData);
   }
 
   private static fillFormField(form: PDFForm, fieldName: string, value?: string) {

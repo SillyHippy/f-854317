@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ServeAttempt, { ServeAttemptData } from "@/components/ServeAttempt";
+import AffidavitGenerationDialog from "@/components/AffidavitGenerationDialog";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import { appwrite } from "@/lib/appwrite";
 import { toast } from "@/hooks/use-toast";
 import { isGeolocationCoordinates } from "@/utils/gps";
@@ -21,6 +23,9 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
 
   const [caseAttempts, setCaseAttempts] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [completedServe, setCompletedServe] = useState<ServeAttemptData | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
+  const [showAffidavitDialog, setShowAffidavitDialog] = useState(false);
 
   useEffect(() => {
     if (clientId && caseNumber) {
@@ -61,13 +66,20 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
       const savedServe = await appwrite.createServeAttempt(serveData);
       console.log("Serve attempt saved successfully:", savedServe);
 
+      // Find the client data
+      const client = clients.find(c => c.id === serveData.clientId);
+      if (client) {
+        setSelectedClient(client);
+        setCompletedServe(serveData);
+      }
+
       toast({
         title: "Serve recorded",
         description: "Service attempt has been saved successfully.",
-        variant: "success",
+        variant: "default",
       });
 
-      navigate("/history");
+      // Show success state with affidavit option
     } catch (error) {
       console.error("Error saving serve attempt:", error);
       toast({
@@ -77,6 +89,84 @@ const NewServe: React.FC<NewServeProps> = ({ clients, addServe }) => {
       });
     }
   };
+
+  const handleGenerateAffidavit = () => {
+    if (completedServe && selectedClient) {
+      setShowAffidavitDialog(true);
+    }
+  };
+
+  // Success state after serve is completed
+  if (completedServe && selectedClient) {
+    return (
+      <div className="page-container">
+        <div className="mb-8">
+          <Button
+            variant="ghost"
+            className="mb-2"
+            onClick={() => navigate("/history")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            View History
+          </Button>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Serve Completed!</h1>
+          <p className="text-muted-foreground">
+            Your serve attempt has been successfully recorded
+          </p>
+        </div>
+
+        <div className="max-w-md mx-auto space-y-4">
+          <div className="p-6 rounded-lg border bg-green-50 border-green-200">
+            <h3 className="font-medium text-green-900 mb-2">Success!</h3>
+            <p className="text-sm text-green-700 mb-4">
+              Serve attempt for {selectedClient.name} has been saved with photo evidence and GPS location.
+            </p>
+            
+            <div className="space-y-2 text-xs text-green-600">
+              <p><strong>Case:</strong> {completedServe.caseName || completedServe.caseNumber}</p>
+              <p><strong>Status:</strong> {completedServe.status}</p>
+              <p><strong>Time:</strong> {new Date(completedServe.timestamp).toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <Button 
+              onClick={handleGenerateAffidavit}
+              className="w-full"
+              variant="outline"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Generate Affidavit PDF
+            </Button>
+            
+            <Button 
+              onClick={() => navigate("/new-serve")}
+              className="w-full"
+            >
+              Create Another Serve
+            </Button>
+            
+            <Button 
+              onClick={() => navigate("/history")}
+              className="w-full"
+              variant="outline"
+            >
+              View All History
+            </Button>
+          </div>
+        </div>
+
+        {showAffidavitDialog && (
+          <AffidavitGenerationDialog
+            open={showAffidavitDialog}
+            onOpenChange={setShowAffidavitDialog}
+            serveData={completedServe}
+            clientData={selectedClient}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">

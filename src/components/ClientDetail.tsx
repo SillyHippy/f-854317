@@ -184,7 +184,7 @@ export default function ClientDetail({ client, onUpdate, onBack }: ClientDetailP
         </TabsContent>
         
         <TabsContent value="cases" className="mt-0">
-          <ClientCases clientId={client.id!} clientName={client.name} />
+          <ClientCases client={client} onUpdate={() => onUpdate(client)} />
         </TabsContent>
       </Tabs>
     </div>

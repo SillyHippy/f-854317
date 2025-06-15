@@ -2,8 +2,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { FileText, Download } from 'lucide-react';
 import { generateAffidavitPDF, AffidavitData } from '@/utils/pdfGenerator';
 import { ServeAttemptData } from '@/components/ServeAttempt';
@@ -25,39 +23,21 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [formData, setFormData] = useState({
-    personEntityBeingServed: '', // Keep this field for user input
-    caseNumber: caseNumber || '',
-    caseName: caseName || ''
-  });
   const { toast } = useToast();
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
   const handleGenerateAffidavit = async () => {
-    if (!formData.personEntityBeingServed.trim()) {
-      toast({
-        title: "Required Field Missing",
-        description: "Please enter the name of the person/entity being served.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsGenerating(true);
     
     try {
+      // Get person/entity being served from the first serve attempt
+      const personEntityBeingServed = serves[0]?.personEntityBeingServed || caseName || 'Unknown';
+
       const affidavitData: AffidavitData = {
         clientName: client.name,
         clientAddress: client.address,
-        caseNumber: formData.caseNumber,
-        caseName: formData.caseName || undefined,
-        personEntityBeingServed: formData.personEntityBeingServed.trim(),
+        caseNumber: caseNumber || '',
+        caseName: caseName || undefined,
+        personEntityBeingServed: personEntityBeingServed,
         serveAttempts: serves
       };
 
@@ -95,28 +75,20 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         </DialogHeader>
         
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="personEntityBeingServed">Person/Entity Being Served *</Label>
-            <Input
-              id="personEntityBeingServed"
-              value={formData.personEntityBeingServed}
-              onChange={(e) => handleInputChange('personEntityBeingServed', e.target.value)}
-              placeholder="Enter person/entity being served"
-              required
-            />
+          <div className="text-sm space-y-2 border rounded-md p-4 bg-accent/20">
+            <p><strong>Person/Entity Being Served:</strong> {serves[0]?.personEntityBeingServed || caseName || 'Unknown'}</p>
+            <p><strong>Service Address:</strong> {serves[0]?.serviceAddress || client.address}</p>
+            <p><strong>Case Number:</strong> {caseNumber || 'N/A'}</p>
+            <p><strong>Attempts:</strong> {serves.length}</p>
           </div>
 
-          <div className="text-sm space-y-2 border-t pt-4">
-            <p><strong>Service Address:</strong> {client.address}</p>
-            <p><strong>Attempts:</strong> {serves.length}</p>
-            <p className="text-xs text-muted-foreground">
-              Case details will be pulled from the selected case information.
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            All available information will be automatically filled in the affidavit form.
+          </p>
 
           <Button 
             onClick={handleGenerateAffidavit} 
-            disabled={isGenerating || !formData.personEntityBeingServed.trim()}
+            disabled={isGenerating}
             className="w-full"
           >
             {isGenerating ? (

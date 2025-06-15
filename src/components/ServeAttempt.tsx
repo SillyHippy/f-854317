@@ -317,7 +317,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         form.setValue("serviceAddress", selectedCase.homeAddress);
       }
     } else if (!useWorkAddress) {
-      // Only clear if work address is not selected
       form.setValue("serviceAddress", "");
     }
   };
@@ -330,7 +329,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         form.setValue("serviceAddress", selectedCase.workAddress);
       }
     } else if (!useHomeAddress) {
-      // Only clear if home address is not selected
       form.setValue("serviceAddress", "");
     }
   };
@@ -338,14 +336,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   const handleCameraCapture = async (imageData: string, coords: GeolocationCoordinates) => {
     setCapturedImage(imageData);
     setLocation(coords);
-    
-    // Get GPS address for reference only
-    const address = await reverseGeocode(coords.latitude, coords.longitude);
-    setGpsAddress(address);
-    
-    // Don't automatically set GPS address as service address
-    // Let user choose from available addresses or enter manually
-    
     setStep("confirm");
   };
 
@@ -813,11 +803,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                                 <Label htmlFor="workAddress" className="text-xs cursor-pointer">
                                   Use Work Address: {selectedCase.workAddress}
                                 </Label>
-                              </div>
-                            )}
-                            {gpsAddress && (
-                              <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
-                                Reference: {gpsAddress}
                               </div>
                             )}
                           </div>

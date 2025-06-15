@@ -5,8 +5,8 @@ import { createServeEmailBody } from "@/utils/email";
 const client = new Client();
 
 client
-  .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || APPWRITE_CONFIG.endpoint)
-  .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || APPWRITE_CONFIG.projectId);
+  .setEndpoint('https://nyc.cloud.appwrite.io/v1')
+  .setProject('67ff9afd003750551953');
 
 const account = new Account(client);
 const databases = new Databases(client);
@@ -14,12 +14,13 @@ const storage = new Storage(client);
 const teams = new Teams(client);
 const functions = new Functions(client);
 
-const DATABASE_ID = APPWRITE_CONFIG.databaseId;
-const CLIENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clients;
-const SERVE_ATTEMPTS_COLLECTION_ID = APPWRITE_CONFIG.collections.serveAttempts;
-const CASES_COLLECTION_ID = APPWRITE_CONFIG.collections.clientCases;
-const DOCUMENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clientDocuments;
-const STORAGE_BUCKET_ID = APPWRITE_CONFIG.storageBucket;
+// New York Database Configuration
+const DATABASE_ID = '67eae6fe0020c6721531';
+const CLIENTS_COLLECTION_ID = '67eae70e000c042112c8';
+const SERVE_ATTEMPTS_COLLECTION_ID = '684c14fb002f6275b932';
+const CASES_COLLECTION_ID = '67eae98f0017c9503bee';
+const DOCUMENTS_COLLECTION_ID = '67eaeaa900128f318514';
+const STORAGE_BUCKET_ID = '67eaeb7700322d74597e';
 
 export const appwrite = {
   client,
@@ -142,7 +143,7 @@ export const appwrite = {
       }
 
       const response = await functions.createExecution(
-        "67ed8899003a8b119a18", 
+        "67ed8899003a8b119a18", // New York email function ID
         JSON.stringify({ ...emailData, to: recipients })
       );
 

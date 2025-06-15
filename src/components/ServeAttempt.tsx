@@ -452,7 +452,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           <CardHeader>
             <CardTitle>New Serve Attempt</CardTitle>
             <CardDescription>
-              {selectedCase ? `Attempt #${caseAttemptCount + 1} for case ${selectedCase.caseNumber}` : 'Select a client and case to begin'}
+              Select a client and case to begin
             </CardDescription>
           </CardHeader>
           
@@ -606,7 +606,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                                   <SelectContent>
                                     {clientCases.map(c => (
                                       <SelectItem key={c.caseNumber} value={c.caseNumber}>
-                                        {c.personEntityBeingServed || c.caseName || c.caseNumber}
+                                        {c.caseNumber} - {c.personEntityBeingServed || c.caseName}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -647,10 +647,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
 
                     {selectedCase && (selectedCase.homeAddress || selectedCase.workAddress) && (
                       <div className="space-y-2 p-3 rounded-md bg-accent/20">
-                        <p className="text-sm font-medium">{selectedCase.personEntityBeingServed || selectedCase.caseName || selectedCase.caseNumber}</p>
-                        <p className="text-xs bg-primary/10 text-primary p-1 px-2 rounded-full inline-block">
-                          Attempt #{caseAttemptCount + 1}
-                        </p>
                         {selectedCase.homeAddress && (
                           <div className="space-y-1">
                             <p className="text-xs font-medium">Home Address:</p>
@@ -773,7 +769,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                   name="serviceAddress"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Service Address</FormLabel>
+                      <FormLabel>Service Address (Optional)</FormLabel>
                       <FormControl>
                         <div className="space-y-2">
                           <Input 

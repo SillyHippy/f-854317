@@ -1,3 +1,4 @@
+
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import { ServeAttemptData } from '@/components/ServeAttempt';
 
@@ -190,7 +191,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           ], data.caseNumber);
         }
         
-        // Fill NAME OF PERSON/ENTITY BEING SERVED - this is the person being served
+        // Fill "NAME OF PERSON / ENTITY BEING SERVED" field - this is the correct field for the person being served
         if (data.personEntityBeingServed) {
           tryFillField([
             'NAME OF PERSON / ENTITY BEING SERVED',
@@ -227,15 +228,6 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               'city_state'
             ], cityState);
           }
-
-          // Only check residence checkbox if we have a service address that appears to be residential
-          // DON'T auto-check - let the user decide
-          // tryCheckField([
-          //   'Residence Checkbox', 
-          //   'residence_checkbox', 
-          //   'residence_check',
-          //   'Residence'
-          // ]);
         }
         
         // Fill service attempt information
@@ -327,9 +319,6 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           'date_of_affidavit', 
           'sworn_date'
         ], new Date().toLocaleDateString());
-        
-        // DO NOT flatten the form - keep it fillable for manual completion
-        // form.flatten(); // Commented out to keep form fillable
         
       } catch (formError) {
         console.error('Error filling form fields:', formError);

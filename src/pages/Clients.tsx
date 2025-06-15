@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,7 +28,6 @@ import { appwrite } from "@/lib/appwrite";
 import { toast } from "@/hooks/use-toast";
 import ClientForm, { ClientData } from "@/components/ClientForm";
 import ResponsiveDialog from "@/components/ResponsiveDialog";
-import PDFTestDialog from "@/components/PDFTestDialog";
 
 export default function Clients() {
   const [clients, setClients] = useState<ClientData[]>([]);
@@ -42,13 +42,38 @@ export default function Clients() {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const clientList = await appwrite.listClients();
-      setClients(clientList);
+      console.log("Fetching clients from Appwrite...");
+      
+      // Try the getClients method first
+      let clientList;
+      try {
+        clientList = await appwrite.getClients();
+        console.log("Retrieved clients using getClients:", clientList);
+      } catch (error) {
+        console.log("getClients failed, trying listClients:", error);
+        clientList = await appwrite.listClients();
+        console.log("Retrieved clients using listClients:", clientList);
+      }
+      
+      // Ensure we have an array
+      const clientArray = Array.isArray(clientList) ? clientList : [];
+      console.log("Final client array:", clientArray);
+      
+      setClients(clientArray);
+      
+      if (clientArray.length === 0) {
+        console.log("No clients found in database");
+        toast({
+          title: "No clients found",
+          description: "Your client database appears to be empty. Try adding a new client.",
+          variant: "default",
+        });
+      }
     } catch (error) {
       console.error("Error fetching clients:", error);
       toast({
-        title: "Error",
-        description: "Failed to fetch clients",
+        title: "Error loading clients",
+        description: "Failed to fetch clients from database. Please check your connection.",
         variant: "destructive",
       });
     } finally {
@@ -58,8 +83,13 @@ export default function Clients() {
 
   const handleAddClient = async (newClient: ClientData) => {
     try {
+      console.log("Adding new client:", newClient);
       const createdClient = await appwrite.createClient(newClient);
-      setClients((prevClients) => [...prevClients, createdClient]);
+      console.log("Client created successfully:", createdClient);
+      
+      // Refresh the client list after adding
+      await fetchClients();
+      
       toast({
         title: "Client added",
         description: "Client has been added successfully.",
@@ -78,13 +108,12 @@ export default function Clients() {
 
   const handleUpdateClient = async (updatedClient: ClientData) => {
     try {
+      console.log("Updating client:", updatedClient);
       const success = await appwrite.updateClient(updatedClient);
       if (success) {
-        setClients((prevClients) =>
-          prevClients.map((client) =>
-            client.id === updatedClient.id ? updatedClient : client
-          )
-        );
+        // Refresh the client list after updating
+        await fetchClients();
+        
         toast({
           title: "Client updated",
           description: "Client has been updated successfully.",
@@ -106,8 +135,12 @@ export default function Clients() {
 
   const handleDeleteClient = async (id: string) => {
     try {
+      console.log("Deleting client:", id);
       await appwrite.deleteClient(id);
-      setClients((prevClients) => prevClients.filter((client) => client.id !== id));
+      
+      // Refresh the client list after deleting
+      await fetchClients();
+      
       toast({
         title: "Client deleted",
         description: "Client has been deleted successfully.",
@@ -134,6 +167,13 @@ export default function Clients() {
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={fetchClients}
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Refresh"}
+            </Button>
             <ResponsiveDialog
               trigger={
                 <Button>
@@ -177,7 +217,14 @@ export default function Clients() {
           {loading ? (
             <div className="text-center">Loading clients...</div>
           ) : filteredClients.length === 0 ? (
-            <div className="text-center">No clients found.</div>
+            <div className="text-center space-y-4">
+              <p>No clients found.</p>
+              <p className="text-sm text-muted-foreground">
+                {clients.length === 0 
+                  ? "Your client database appears to be empty. Add your first client to get started."
+                  : "No clients match your search criteria."}
+              </p>
+            </div>
           ) : (
             <ScrollArea className="rounded-md border">
               <Table>

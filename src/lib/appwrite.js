@@ -1,215 +1,103 @@
-import { Client, Account, Databases, Storage, ID, Query, Teams, Functions } from 'appwrite';
-import { APPWRITE_CONFIG } from '@/config/backendConfig';
-import { createServeEmailBody } from "@/utils/email"; 
+import { Client, Account, Databases, Storage, Query, ID } from "appwrite";
+import { APPWRITE_CONFIG } from "@/config/backendConfig";
 
-const client = new Client();
+// Initialize the Appwrite client
+const client = new Client()
+  .setEndpoint(APPWRITE_CONFIG.endpoint)
+  .setProject(APPWRITE_CONFIG.projectId);
 
-client
-  .setEndpoint('https://nyc.cloud.appwrite.io/v1')
-  .setProject('67ff9afd003750551953');
-
+// Create instances of the Appwrite services
 const account = new Account(client);
 const databases = new Databases(client);
 const storage = new Storage(client);
-const teams = new Teams(client);
-const functions = new Functions(client);
 
-// New York Database Configuration
-const DATABASE_ID = '67eae6fe0020c6721531';
-const CLIENTS_COLLECTION_ID = '67eae70e000c042112c8';
-const SERVE_ATTEMPTS_COLLECTION_ID = '684c14fb002f6275b932';
-const CASES_COLLECTION_ID = '67eae98f0017c9503bee';
-const DOCUMENTS_COLLECTION_ID = '67eaeaa900128f318514';
-const STORAGE_BUCKET_ID = '67eaeb7700322d74597e';
+// Export the Appwrite client and services
+export { client, account, databases, storage, Query, ID };
 
-export const appwrite = {
-  client,
-  account,
-  databases,
-  storage,
-  teams,
-  functions,
-  DATABASE_ID,
-  collections: APPWRITE_CONFIG.collections,
-  CLIENTS_COLLECTION_ID,
-  SERVE_ATTEMPTS_COLLECTION_ID,
-  CASES_COLLECTION_ID,
-  DOCUMENTS_COLLECTION_ID,
-  STORAGE_BUCKET_ID,
+// Export config values for ease of use
+export const DATABASE_ID = APPWRITE_CONFIG.databaseId;
+export const CLIENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clients;
+export const CASES_COLLECTION_ID = APPWRITE_CONFIG.collections.clientCases;
+export const SERVE_ATTEMPTS_COLLECTION_ID = APPWRITE_CONFIG.collections.serveAttempts;
+export const CLIENT_DOCUMENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.clientDocuments;
+export const STORAGE_BUCKET_ID = APPWRITE_CONFIG.storageBucket;
 
-  async sendMessage(payload, providerId, topicId) {
+const appwrite = {
+  // Account Management
+  createAccount: async (email, password, name) => {
     try {
-      console.log(`Sending message via Appwrite messaging with provider ${providerId} and topic ${topicId}`);
-      console.log("Message payload:", {
-        subject: payload.subject,
-        recipients: payload.recipients,
-        hasImageData: !!payload.imageData,
-      });
-
-      if (!payload.subject || !payload.content || !payload.recipients) {
-        throw new Error("Missing required fields for email: subject, content, or recipients");
-      }
-
-      try {
-        const result = await functions.createExecution(
-          "sendEmail",
-          JSON.stringify({
-            subject: payload.subject,
-            html: payload.content,
-            to: payload.recipients.split(", ")
-          }),
-          false, 
-          "", 
-          "POST", 
-          {} 
-        );
-        
-        console.log("Email function execution result:", result);
-        
-        if (result.$id) {
-          return { 
-            success: true,
-            id: result.$id,
-            message: "Email send request has been queued"
-          };
-        } else {
-          throw new Error("Function execution created but no ID returned");
-        }
-      } catch (fnError) {
-        console.error("Error executing email function:", fnError);
-        
-        console.log("Falling back to direct messaging API call");
-        
-        const endpoint = `${client.config.endpoint}/messaging/topics/${topicId}/subscribers`;
-        
-        const headers = {
-          'Content-Type': 'application/json',
-          'X-Appwrite-Project': client.config.project,
-        };
-        
-        if (client.config.key) {
-          headers['X-Appwrite-Key'] = client.config.key;
-        } else if (client.config.jwt) {
-          headers['X-Appwrite-JWT'] = client.config.jwt;
-        }
-        
-        const messageData = {
-          userId: 'unique',
-          providerType: 'smtp',
-          providerId: providerId,
-          targetId: payload.recipients,
-          content: {
-            subject: payload.subject,
-            html: payload.content,
-          },
-          metadata: payload.metadata || {},
-        };
-        
-        if (payload.imageData) {
-          messageData.content.attachments = [{
-            content: payload.imageData,
-            filename: 'serve_evidence.jpeg',
-            disposition: 'attachment'
-          }];
-        }
-        
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify(messageData),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Failed to send message: ${errorData.message || response.statusText}`);
-        }
-        
-        const result = await response.json();
-        console.log("Message sent successfully via API:", result);
-        return result;
-      }
+      const user = await account.create(ID.unique(), email, password, name);
+      return user;
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error creating account:", error);
       throw error;
     }
   },
 
-  async sendEmailViaFunction(emailData) {
+  getSession: async (sessionId) => {
     try {
-      const businessEmail = 'info@justlegalsolutions.org';
-      const recipients = Array.isArray(emailData.to) ? [...emailData.to] : [emailData.to];
-      if (!recipients.some(email => email.toLowerCase() === businessEmail.toLowerCase())) {
-        recipients.push(businessEmail);
-      }
-
-      const response = await functions.createExecution(
-        "67ed8899003a8b119a18", // New York email function ID
-        JSON.stringify({ ...emailData, to: recipients })
-      );
-
-      if (response.status === "completed") {
-        console.log("Email function executed successfully:", response);
-        return { success: true, message: "Email sent successfully" };
-      } else {
-        console.error("Email function execution failed:", response);
-        return { success: false, message: "Email function execution failed" };
-      }
+      const session = await account.getSession(sessionId);
+      return session;
     } catch (error) {
-      console.error("Error calling email function:", error);
-      return { success: false, message: error.message };
-    }
-  },
-
-  setupRealtimeSubscription(callback) {
-    try {
-      console.log("Setting up realtime subscription for Appwrite");
-      
-      const unsubscribe = client.subscribe([
-        `databases.${DATABASE_ID}.collections.${CLIENTS_COLLECTION_ID}.documents`,
-        `databases.${DATABASE_ID}.collections.${SERVE_ATTEMPTS_COLLECTION_ID}.documents`,
-        `databases.${DATABASE_ID}.collections.${CASES_COLLECTION_ID}.documents`,
-        `databases.${DATABASE_ID}.collections.${DOCUMENTS_COLLECTION_ID}.documents`,
-      ], (response) => {
-        callback(response);
-      });
-      
-      return unsubscribe;
-    } catch (error) {
-      console.error("Error setting up Appwrite realtime subscription:", error);
-      return () => {};
-    }
-  },
-
-  isAppwriteConfigured() {
-    return !!APPWRITE_CONFIG.projectId && !!APPWRITE_CONFIG.endpoint;
-  },
-
-  async getClients() {
-    try {
-      const response = await databases.listDocuments(DATABASE_ID, CLIENTS_COLLECTION_ID);
-      return response.documents;
-    } catch (error) {
-      console.error('Error fetching clients:', error);
+      console.error("Error getting session:", error);
       throw error;
     }
   },
 
-  async createClient(client) {
+  deleteSession: async (sessionId) => {
     try {
-      const clientId = client.id || ID.unique();
-      const now = new Date().toISOString();
+      await account.deleteSession(sessionId);
+    } catch (error) {
+      console.error("Error deleting session:", error);
+      throw error;
+    }
+  },
+
+  getAccount: async () => {
+    try {
+      const user = await account.get();
+      return user;
+    } catch (error) {
+      console.error("Error getting account:", error);
+      throw error;
+    }
+  },
+
+  createEmailSession: async (email, password) => {
+    try {
+      const session = await account.createEmailSession(email, password);
+      return session;
+    } catch (error) {
+      console.error("Error creating email session:", error);
+      throw error;
+    }
+  },
+
+  deleteCurrentSession: async () => {
+    try {
+      await account.deleteSession("current");
+    } catch (error) {
+      console.error("Error deleting current session:", error);
+      throw error;
+    }
+  },
+
+  // Client Management
+  createClient: async (clientData) => {
+    try {
       const response = await databases.createDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
-        clientId,
+        ID.unique(),
         {
-          name: client.name,
-          email: client.email,
-          additional_emails: client.additionalEmails || [],
-          phone: client.phone,
-          address: client.address,
-          notes: client.notes || "",
-          created_at: now,
+          name: clientData.name,
+          email: clientData.email,
+          phone: clientData.phone,
+          address: clientData.address,
+          notes: clientData.notes || "",
+          additional_emails: clientData.additionalEmails || [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
       );
       return response;
@@ -219,518 +107,148 @@ export const appwrite = {
     }
   },
 
-  async updateClient(clientId, clientData) {
+  getClients: async () => {
     try {
-      console.log('Updating client with data:', clientData);
-      
+      const { documents } = await databases.listDocuments(
+        DATABASE_ID,
+        CLIENTS_COLLECTION_ID
+      );
+      return documents;
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      return [];
+    }
+  },
+
+  getClient: async (clientId) => {
+    try {
+      const client = await databases.getDocument(
+        DATABASE_ID,
+        CLIENTS_COLLECTION_ID,
+        clientId
+      );
+      return client;
+    } catch (error) {
+      console.error("Error fetching client:", error);
+      throw error;
+    }
+  },
+
+  updateClient: async (clientId, clientData) {
+    try {
       const response = await databases.updateDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
         clientId,
         {
-          name: clientData.name || '',
-          email: clientData.email || '',
+          name: clientData.name,
+          email: clientData.email,
+          phone: clientData.phone,
+          address: clientData.address,
+          notes: clientData.notes || "",
           additional_emails: clientData.additionalEmails || [],
-          phone: clientData.phone || '',
-          address: clientData.address || '',
-          notes: clientData.notes || ''
+          updated_at: new Date().toISOString()
         }
       );
-      console.log('Client update response:', response);
       return response;
     } catch (error) {
       console.error('Error updating client:', error);
-      console.error('Error details:', error.response || error.message);
       throw error;
     }
   },
 
-  async deleteClient(clientId) {
+  deleteClient: async (clientId) => {
     try {
-      console.log('Attempting to delete client:', clientId);
+      // First delete all related documents
+      await this.deleteAllClientData(clientId);
       
-      const cases = await this.getClientCases(clientId);
-      console.log(`Found ${cases.length} cases to delete`);
-      
-      for (const caseDoc of cases) {
-        try {
-          await this.deleteClientCase(caseDoc.$id);
-          console.log(`Deleted case: ${caseDoc.$id}`);
-        } catch (caseError) {
-          console.error(`Error deleting case ${caseDoc.$id}:`, caseError);
-        }
-      }
-      
-      const serves = await this.getClientServeAttempts(clientId);
-      console.log(`Found ${serves.length} serve attempts to delete`);
-      
-      for (const serve of serves) {
-        try {
-          await this.deleteServeAttempt(serve.$id);
-          console.log(`Deleted serve attempt: ${serve.$id}`);
-        } catch (serveError) {
-          console.error(`Error deleting serve attempt ${serve.$id}:`, serveError);
-        }
-      }
-      
-      const documents = await this.getClientDocuments(clientId);
-      console.log(`Found ${documents.length} documents to delete`);
-      
-      for (const doc of documents) {
-        try {
-          await this.deleteClientDocument(doc.$id, doc.file_path || doc.filePath);
-          console.log(`Deleted document: ${doc.$id}`);
-        } catch (docError) {
-          console.error(`Error deleting document ${doc.$id}:`, docError);
-        }
-      }
-      
-      console.log('Deleting client record:', clientId);
+      // Then delete the client
       await databases.deleteDocument(
         DATABASE_ID,
         CLIENTS_COLLECTION_ID,
         clientId
       );
-      
-      console.log('Client and all associated data deleted successfully');
       return true;
     } catch (error) {
-      console.error('Error in client deletion process:', error);
+      console.error('Error deleting client:', error);
       throw error;
     }
   },
 
-  async getServeAttempts(limit = 50, offset = 0) {
+  deleteAllClientData: async (clientId) => {
     try {
-      // Add pagination to prevent memory overload
-      const queries = [
-        Query.orderDesc('timestamp'),
-        Query.limit(limit),
-        Query.offset(offset)
-      ];
-      
-      const response = await databases.listDocuments(DATABASE_ID, SERVE_ATTEMPTS_COLLECTION_ID, queries);
-      
-      const formattedServes = response.documents.map(doc => ({
-        id: doc.$id,
-        clientId: doc.client_id || "unknown",
-        clientName: doc.client_name || "Unknown Client",
-        caseNumber: doc.case_number || "Unknown",
-        caseName: doc.case_name || "Unknown Case",
-        coordinates: doc.coordinates || null,
-        notes: doc.notes || "",
-        status: doc.status || "unknown",
-        timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
-        attemptNumber: doc.attempt_number || 1,
-        // Only include image data for recent records to save memory
-        imageData: offset === 0 ? (doc.image_data || null) : null,
-        address: doc.address || "",
-        serviceAddress: doc.service_address || "",
-      }));
-      
-      return formattedServes;
-    } catch (error) {
-      console.error('Error fetching serve attempts:', error);
-      return [];
-    }
-  },
-
-  async getTotalServeAttemptsCount() {
-    try {
-      const response = await databases.listDocuments(
-        DATABASE_ID, 
-        SERVE_ATTEMPTS_COLLECTION_ID,
-        [Query.limit(1)]
-      );
-      return response.total || 0;
-    } catch (error) {
-      console.error('Error getting total serve attempts count:', error);
-      return 0;
-    }
-  },
-
-  async getClientServeAttempts(clientId) {
-    try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        SERVE_ATTEMPTS_COLLECTION_ID,
-        [Query.equal('client_id', clientId)]
-      );
-      return response.documents.map(doc => ({
-        id: doc.$id,
-        clientId: doc.client_id || "unknown",
-        clientName: doc.client_name || "Unknown Client", 
-        caseNumber: doc.case_number || "Unknown",
-        caseName: doc.case_name || "Unknown Case",
-        coordinates: doc.coordinates || null,
-        notes: doc.notes || "",
-        status: doc.status || "unknown",
-        timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
-        attemptNumber: doc.attempt_number || 1,
-        imageData: doc.image_data || null,
-        address: doc.address || "",
-        serviceAddress: doc.service_address || "",
-      })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    } catch (error) {
-      console.error(`Error fetching serve attempts for client ${clientId}:`, error);
-      return [];
-    }
-  },
-
-  async createServeAttempt(serveData) {
-    try {
-      console.log("Creating serve attempt in Appwrite with data:", {
-        clientId: serveData.clientId,
-        clientName: serveData.clientName,
-        caseNumber: serveData.caseNumber,
-        caseName: serveData.caseName
-      });
-
-      if (!serveData.clientId || serveData.clientId === "unknown") {
-        throw new Error("Valid client ID is required for serve attempts.");
+      // Delete serve attempts
+      const serves = await this.getClientServeAttempts(clientId);
+      for (const serve of serves) {
+        await this.deleteServeAttempt(serve.$id);
       }
 
-      let clientName = serveData.clientName || "Unknown Client";
-      if (clientName === "Unknown Client") {
-        try {
-          const client = await databases.getDocument(
-            DATABASE_ID,
-            CLIENTS_COLLECTION_ID,
-            serveData.clientId
-          );
-          if (client && client.name) {
-            clientName = client.name;
-          }
-        } catch (clientError) {
-          console.warn("Could not fetch client name:", clientError);
-        }
+      // Delete cases
+      const cases = await this.getClientCases(clientId);
+      for (const caseItem of cases) {
+        await this.deleteClientCase(caseItem.$id);
       }
 
-      const address = serveData.address || 
-                      (typeof serveData.coordinates === 'string' ? 
-                       `Coordinates: ${serveData.coordinates}` : 
-                       "Address not provided");
-
-      const caseNumber = serveData.caseNumber || "Not Specified";
-      const caseName = serveData.caseName || "Unknown Case";
-
-      let coordinates = "0,0";
-      if (serveData.coordinates) {
-        if (typeof serveData.coordinates === 'string') {
-          coordinates = serveData.coordinates;
-        } else if (serveData.coordinates.latitude !== undefined && serveData.coordinates.longitude !== undefined) {
-          coordinates = `${serveData.coordinates.latitude},${serveData.coordinates.longitude}`;
-        }
-      }
-
-      const documentId = ID.unique();
-
-      const payload = {
-        client_id: serveData.clientId,
-        client_name: clientName,
-        case_number: caseNumber,
-        case_name: caseName,
-        status: serveData.status || "unknown",
-        notes: serveData.notes || "",
-        address: address,
-        service_address: serveData.serviceAddress || serveData.address || "",
-        coordinates: coordinates,
-        image_data: serveData.imageData || "",
-        timestamp: serveData.timestamp ? 
-                   (serveData.timestamp instanceof Date ? 
-                    serveData.timestamp.toISOString() : 
-                    new Date(serveData.timestamp).toISOString()) : 
-                   new Date().toISOString(),
-        attempt_number: serveData.attemptNumber || 1,
-      };
-
-      const response = await databases.createDocument(
-        DATABASE_ID,
-        SERVE_ATTEMPTS_COLLECTION_ID,
-        documentId,
-        payload
-      );
-      
-      console.log("Serve attempt saved successfully with ID:", response.$id);
-      
-      if (serveData.clientEmail) {
-        response.clientEmail = serveData.clientEmail;
-      }
-      
-      try {
-        const emailBody = createServeEmailBody(
-          response.client_name,
-          response.address,
-          response.notes,
-          new Date(response.timestamp),
-          response.coordinates,
-          response.attempt_number,
-          response.case_name
-        );
-    
-        const statusText = response.status === 'completed' ? 'Successful' : 'Failed';
-        const emailData = {
-          to: serveData.clientEmail || "info@justlegalsolutions.org",
-          subject: `New Serve Attempt ${statusText} - ${response.case_name}`,
-          html: emailBody,
-          imageData: response.image_data, 
-          coordinates: response.coordinates,
-          notes: response.notes,
-          status: response.status
-        };
-    
-        console.log("Sending email with full data payload...");
-        const emailResult = await this.sendEmailViaFunction(emailData);
-    
-        if (emailResult.success) {
-          console.log("Email sent successfully:", emailResult.message);
-        } else {
-          console.error("Failed to send email:", emailResult.message);
-        }
-      } catch (emailError) {
-        console.error("Error sending email notification:", emailError);
-      }
-      
-      return response;
-    } catch (error) {
-      console.error("Error creating serve attempt:", error);
-      
-      try {
-        console.log("Saving serve attempt to local storage as fallback");
-        const serveAttempts = JSON.parse(localStorage.getItem("serve-tracker-serves") || "[]");
-        const newServe = {
-          id: ID.unique(),
-          clientId: serveData.clientId,
-          clientName: serveData.clientName || "Unknown Client",
-          clientEmail: serveData.clientEmail,
-          caseNumber: serveData.caseNumber || "Unknown",
-          caseName: serveData.caseName || "Unknown Case",
-          coordinates: serveData.coordinates || null,
-          notes: serveData.notes || "",
-          status: serveData.status || "unknown",
-          timestamp: new Date(),
-          attemptNumber: serveData.attemptNumber || 1,
-          imageData: serveData.imageData || null,
-          address: serveData.address || ""
-        };
-        serveAttempts.push(newServe);
-        localStorage.setItem("serve-tracker-serves", JSON.stringify(serveAttempts));
-        console.log("Saved to local storage successfully");
-        return newServe;
-      } catch (localError) {
-        console.error("Failed local storage fallback:", localError);
-      }
-      
-      throw error;
-    }
-  },
-
-  async updateServeAttempt(serveId, serveData) {
-    try {
-      console.log("Updating serve attempt with data:", serveData);
-
-      const docId = typeof serveId === 'object' ? (serveId.id || serveId.$id) : serveId;
-
-      if (!docId) {
-        throw new Error("Valid serve ID is required for updating");
-      }
-
-      const originalDoc = await databases.getDocument(
-        DATABASE_ID,
-        SERVE_ATTEMPTS_COLLECTION_ID,
-        docId
-      );
-
-      console.log("Original document:", originalDoc);
-
-      const updateData = {};
-      
-      if (serveData.notes !== undefined && serveData.notes !== originalDoc.notes) 
-        updateData.notes = serveData.notes;
-      
-      if (serveData.status !== undefined && serveData.status !== originalDoc.status) 
-        updateData.status = serveData.status;
-      
-      if (serveData.caseNumber !== undefined && serveData.caseNumber !== originalDoc.case_number) 
-        updateData.case_number = serveData.caseNumber;
-      
-      if (serveData.caseName !== undefined && serveData.caseName !== originalDoc.case_name) 
-        updateData.case_name = serveData.caseName;
-      
-      console.log("Updating document with fields:", updateData);
-
-      if (Object.keys(updateData).length > 0) {
-        const response = await databases.updateDocument(
-          DATABASE_ID,
-          SERVE_ATTEMPTS_COLLECTION_ID,
-          docId,
-          updateData
-        );
-
-        console.log("Update response:", response);
-
-        // --- THIS IS THE NEW CODE ---
-        try {
-          // Fetch the client's data to get their email
-          const client = await databases.getDocument(DATABASE_ID, CLIENTS_COLLECTION_ID, response.client_id);
-          const clientEmail = client.email;
-          
-          if (clientEmail) {
-            const emailBody = createServeEmailBody(
-              response.client_name,
-              response.address,
-              response.notes,
-              new Date(response.timestamp),
-              response.coordinates,
-              response.attempt_number,
-              response.case_name
-            );
-
-            const statusText = response.status === 'completed' ? 'Successful' : 'Failed';
-            const emailData = {
-              to: clientEmail,
-              subject: `Serve Attempt Updated - ${response.case_name}`,
-              html: emailBody,
-              imageData: response.image_data, 
-              coordinates: response.coordinates,
-              notes: response.notes,
-              status: response.status
-            };
-
-            console.log("Sending update email notification...");
-            await this.sendEmailViaFunction(emailData);
-          }
-        } catch (emailError) {
-          console.error("Error sending update email notification:", emailError);
-        }
-        // --- END OF NEW CODE ---
-        
-        await this.syncAppwriteServesToLocal();
-
-        return response;
-      } else {
-        console.log("No fields to update");
-        return originalDoc;
-      }
-    } catch (error) {
-      console.error('Error updating serve attempt:', error);
-      throw error;
-    }
-  },
-
-  async deleteServeAttempt(serveId) {
-    try {
-      if (!serveId) {
-        console.warn("Invalid serveId provided to deleteServeAttempt:", serveId);
-        return false;
-      }
-
-      console.log(`Attempting to delete serve attempt with ID: ${serveId}`);
-      await databases.deleteDocument(DATABASE_ID, SERVE_ATTEMPTS_COLLECTION_ID, serveId);
-      console.log(`Successfully deleted serve attempt with ID: ${serveId}`);
-      return true;
-    } catch (error) {
-      console.error(`Error deleting serve attempt ${serveId}:`, error);
-      throw error;
-    }
-  },
-
-  async resolveClientId(fallbackClientId) {
-    try {
-      console.log(`Resolving client ID for fallback client_id: ${fallbackClientId}`);
-
-      const cases = await databases.listDocuments(
-        DATABASE_ID,
-        CASES_COLLECTION_ID,
-        [Query.equal('client_id', fallbackClientId)]
-      );
-      if (cases.documents.length > 0) {
-        console.log(`Resolved client ID from client_cases: ${fallbackClientId}`);
-        return fallbackClientId;
-      }
-
+      // Delete documents - get them first
       const documents = await databases.listDocuments(
         DATABASE_ID,
-        DOCUMENTS_COLLECTION_ID,
-        [Query.equal('client_id', fallbackClientId)]
+        CLIENT_DOCUMENTS_COLLECTION_ID,
+        [Query.equal('client_id', clientId)]
       );
-      if (documents.documents.length > 0) {
-        console.log(`Resolved client ID from client_documents: ${fallbackClientId}`);
-        return fallbackClientId;
+      
+      for (const doc of documents.documents) {
+        // Delete from storage if file_path exists and is valid
+        if (doc.file_path && doc.file_path !== 'unique()') {
+          try {
+            await storage.deleteFile(STORAGE_BUCKET_ID, doc.file_path);
+          } catch (storageError) {
+            console.error('Error deleting file from storage:', storageError);
+          }
+        }
+        
+        // Delete document record
+        await databases.deleteDocument(
+          DATABASE_ID,
+          CLIENT_DOCUMENTS_COLLECTION_ID,
+          doc.$id
+        );
       }
-
-      const serves = await databases.listDocuments(
-        DATABASE_ID,
-        SERVE_ATTEMPTS_COLLECTION_ID,
-        [Query.equal('client_id', fallbackClientId)]
-      );
-      if (serves.documents.length > 0) {
-        console.log(`Resolved client ID from serve_attempts: ${fallbackClientId}`);
-        return fallbackClientId;
-      }
-
-      console.warn(`Unable to resolve client ID for fallback client_id: ${fallbackClientId}`);
-      return null;
     } catch (error) {
-      console.error(`Error resolving client ID for fallback client_id: ${fallbackClientId}`, error);
-      return null;
+      console.error('Error deleting client data:', error);
+      throw error;
     }
   },
-  async syncAppwriteServesToLocal() {
+
+  // Client Case Management
+  createClientCase: async (caseData) => {
     try {
-      // Only sync recent data to prevent memory overload
-      const response = await databases.listDocuments(
-        DATABASE_ID, 
-        SERVE_ATTEMPTS_COLLECTION_ID,
-        [
-          Query.orderDesc('timestamp'),
-          Query.limit(100) // Limit to most recent 100 serves
-        ]
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        CASES_COLLECTION_ID,
+        ID.unique(),
+        {
+          client_id: caseData.client_id,
+          case_number: caseData.case_number,
+          case_name: caseData.case_name,
+          court_name: caseData.court_name || "",
+          plaintiff_petitioner: caseData.plaintiff_petitioner || "",
+          defendant_respondent: caseData.defendant_respondent || "",
+          notes: caseData.notes || "",
+          status: caseData.status || "active",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          home_address: caseData.home_address || "",
+          work_address: caseData.work_address || ""
+        }
       );
-      
-      if (!response.documents || response.documents.length === 0) {
-        console.log("No serve attempts found in Appwrite");
-        return false;
-      }
-
-      const frontendServes = response.documents.map(doc => ({
-        id: doc.$id,
-        clientId: doc.client_id || "unknown",
-        clientName: doc.client_name || "Unknown Client",
-        caseNumber: doc.case_number || "Unknown",
-        caseName: doc.case_name || "Unknown Case",
-        coordinates: doc.coordinates || null,
-        notes: doc.notes || "",
-        status: doc.status || "unknown",
-        timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
-        attemptNumber: doc.attempt_number || 1,
-        // Only include image data for most recent 20 records
-        imageData: response.documents.indexOf(doc) < 20 ? (doc.image_data || null) : null,
-        address: doc.address || "",
-        serviceAddress: doc.service_address || "",
-      }));
-
-      // Check localStorage size before saving
-      const dataString = JSON.stringify(frontendServes);
-      const sizeInMB = new Blob([dataString]).size / (1024 * 1024);
-      
-      if (sizeInMB > 5) { // If data is over 5MB, reduce image data
-        console.warn(`Data size is ${sizeInMB.toFixed(2)}MB, removing image data to prevent memory issues`);
-        frontendServes.forEach(serve => serve.imageData = null);
-      }
-
-      localStorage.setItem("serve-tracker-serves", JSON.stringify(frontendServes));
-      window.dispatchEvent(new CustomEvent("serves-updated"));
-
-      console.log(`Synced ${frontendServes.length} serve attempts from Appwrite to local storage (${sizeInMB.toFixed(2)}MB)`);
-      return true;
+      return response;
     } catch (error) {
-      console.error("Error syncing serve attempts from Appwrite:", error);
-      return false;
+      console.error("Error creating client case:", error);
+      throw error;
     }
   },
 
-  async getClientCases(clientId) {
+  getClientCases: async (clientId) => {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
@@ -739,77 +257,12 @@ export const appwrite = {
       );
       return response.documents;
     } catch (error) {
-      console.error(`Error fetching cases for client ${clientId}:`, error);
+      console.error('Error fetching client cases:', error);
       return [];
     }
   },
 
-  async createClientCase(caseData) {
-    try {
-      const caseId = ID.unique();
-      const now = new Date().toISOString();
-      const response = await databases.createDocument(
-        DATABASE_ID,
-        CASES_COLLECTION_ID,
-        caseId,
-        {
-          client_id: caseData.client_id,
-          case_number: caseData.case_number,
-          case_name: caseData.case_name,
-          court_name: caseData.court_name || "",
-          plaintiff_petitioner: caseData.plaintiff_petitioner || "",
-          defendant_respondent: caseData.defendant_respondent || "",
-          home_address: caseData.home_address || "",
-          work_address: caseData.work_address || "",
-          notes: caseData.notes || "",
-          status: caseData.status || 'active',
-          created_at: now,
-          updated_at: now
-        }
-      );
-      return response;
-    } catch (error) {
-      console.error('Error creating client case:', error);
-      throw error;
-    }
-  },
-
-  async createCase(caseData) {
-    // Alias for createClientCase for backward compatibility
-    return this.createClientCase(caseData);
-  },
-
-  async updateCase(caseId, caseData) {
-    try {
-      console.log('Updating case with ID:', caseId, 'and data:', caseData);
-      
-      const response = await databases.updateDocument(
-        DATABASE_ID,
-        CASES_COLLECTION_ID,
-        caseId,
-        {
-          case_number: caseData.case_number,
-          case_name: caseData.case_name,
-          court_name: caseData.court_name,
-          plaintiff_petitioner: caseData.plaintiff_petitioner,
-          defendant_respondent: caseData.defendant_respondent,
-          home_address: caseData.home_address,
-          work_address: caseData.work_address,
-          notes: caseData.notes,
-          status: caseData.status,
-          updated_at: new Date().toISOString()
-        }
-      );
-      
-      console.log('Case update successful:', response);
-      return response;
-    } catch (error) {
-      console.error('Error updating case:', error);
-      throw error;
-    }
-  },
-
-  async deleteClientCase(caseId) {
+  deleteClientCase: async (caseId) => {
     try {
       await databases.deleteDocument(
         DATABASE_ID,
@@ -823,92 +276,241 @@ export const appwrite = {
     }
   },
 
-  async updateCaseStatus(caseId, status) {
+  updateCaseStatus: async (clientId, caseNumber, status) => {
     try {
-      const response = await databases.updateDocument(
+      // Find the case first
+      const cases = await databases.listDocuments(
         DATABASE_ID,
         CASES_COLLECTION_ID,
-        caseId,
+        [
+          Query.equal('client_id', clientId),
+          Query.equal('case_number', caseNumber)
+        ]
+      );
+      
+      if (cases.documents.length > 0) {
+        const caseDoc = cases.documents[0];
+        await databases.updateDocument(
+          DATABASE_ID,
+          CASES_COLLECTION_ID,
+          caseDoc.$id,
+          { status: status }
+        );
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error updating case status:', error);
+      return false;
+    }
+  },
+
+  // Serve Attempt Management
+  createServeAttempt: async (serveData) => {
+    try {
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        ID.unique(),
         {
-          status: status,
+          client_id: serveData.clientId,
+          case_number: serveData.caseNumber,
+          case_name: serveData.caseName,
+          description: serveData.description || "",
+          status: serveData.status || "pending",
+          service_address: serveData.serviceAddress || "",
+          timestamp: serveData.timestamp || new Date().toISOString(),
+          coordinates: serveData.coordinates || null,
+          image_data: serveData.imageData || null,
+          attempt_number: serveData.attemptNumber || 1,
+          person_entity_being_served: serveData.personEntityBeingServed || "",
+          physical_description: serveData.physicalDescription || null,
+          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
       );
       return response;
     } catch (error) {
-      console.error('Error updating case status:', error);
+      console.error("Error creating serve attempt:", error);
       throw error;
     }
   },
 
-  async uploadClientDocument(clientId, file, caseNumber, description) {
+  getServeAttempts: async () => {
     try {
-      const fileId = ID.unique();
-      const fileUploadResponse = await storage.createFile(
-        STORAGE_BUCKET_ID,
-        fileId,
-        file
-      );
-      
-      const docId = ID.unique();
-      const now = new Date().toISOString();
-      const document = await databases.createDocument(
+      const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        DOCUMENTS_COLLECTION_ID,
-        docId,
-        {
-          client_id: clientId,
-          case_number: caseNumber || "",
-          file_name: file.name,
-          file_size: file.size,
-          file_type: file.type,
-          file_path: fileId,
-          description: description || "",
-          created_at: now
-        }
+        SERVE_ATTEMPTS_COLLECTION_ID
       );
-      return document;
+      return documents;
     } catch (error) {
-      console.error('Error uploading client document:', error);
-      throw error;
-    }
-  },
-
-  async getClientDocuments(clientId, caseNumber) {
-    try {
-      const queries = [Query.equal('client_id', clientId)];
-      if (caseNumber) {
-        queries.push(Query.equal('case_number', caseNumber));
-      }
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        DOCUMENTS_COLLECTION_ID,
-        queries
-      );
-      return response.documents;
-    } catch (error) {
-      console.error(`Error fetching documents for client ${clientId}:`, error);
+      console.error("Error fetching serve attempts:", error);
       return [];
     }
   },
 
-  async deleteClientDocument(docId, fileId) {
+  getServeAttempt: async (serveId) => {
     try {
-      console.log(`Attempting to delete document with ID: ${docId} and fileId: ${fileId}`);
+      const serve = await databases.getDocument(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        serveId
+      );
+      return serve;
+    } catch (error) {
+      console.error("Error fetching serve attempt:", error);
+      throw error;
+    }
+  },
 
-      if (fileId && (!/^[a-zA-Z0-9_]{1,36}$/.test(fileId) || fileId.startsWith('_'))) {
-        console.warn(`Invalid fileId: ${fileId}. Skipping file deletion.`);
-      } else if (fileId) {
-        await storage.deleteFile(STORAGE_BUCKET_ID, fileId);
-        console.log(`Successfully deleted file with fileId: ${fileId}`);
-      }
+  getClientServeAttempts: async (clientId) => {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        [Query.equal('client_id', clientId)]
+      );
+      return response.documents;
+    } catch (error) {
+      console.error('Error fetching client serve attempts:', error);
+      return [];
+    }
+  },
 
-      await databases.deleteDocument(DATABASE_ID, DOCUMENTS_COLLECTION_ID, docId);
-      console.log(`Successfully deleted document with ID: ${docId}`);
+  updateServeAttempt: async (serveId, serveData) => {
+    try {
+      const response = await databases.updateDocument(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        serveId,
+        {
+          client_id: serveData.clientId,
+          case_number: serveData.caseNumber,
+          case_name: serveData.caseName,
+          description: serveData.description || "",
+          status: serveData.status || "pending",
+          service_address: serveData.serviceAddress || "",
+          timestamp: serveData.timestamp || new Date().toISOString(),
+          coordinates: serveData.coordinates || null,
+          image_data: serveData.imageData || null,
+          attempt_number: serveData.attemptNumber || 1,
+          person_entity_being_served: serveData.personEntityBeingServed || "",
+          physical_description: serveData.physicalDescription || null,
+          updated_at: new Date().toISOString()
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error("Error updating serve attempt:", error);
+      throw error;
+    }
+  },
+
+  deleteServeAttempt: async (serveId) => {
+    try {
+      await databases.deleteDocument(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        serveId
+      );
       return true;
     } catch (error) {
-      console.error('Error deleting client document:', error);
+      console.error("Error deleting serve attempt:", error);
       throw error;
+    }
+  },
+
+  // Client Document Management
+  uploadClientDocument: async (clientId, file, caseNumber, description) => {
+    try {
+      const fileUpload = await storage.createFile(
+        STORAGE_BUCKET_ID,
+        ID.unique(),
+        file
+      );
+
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        CLIENT_DOCUMENTS_COLLECTION_ID,
+        ID.unique(),
+        {
+          client_id: clientId,
+          file_name: file.name,
+          file_path: fileUpload.$id,
+          file_type: file.type,
+          file_size: file.size,
+          case_number: caseNumber || "",
+          description: description || "",
+          created_at: new Date().toISOString()
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error("Error uploading client document:", error);
+      throw error;
+    }
+  },
+
+  getClientDocuments: async (clientId) => {
+    try {
+      const { documents } = await databases.listDocuments(
+        DATABASE_ID,
+        CLIENT_DOCUMENTS_COLLECTION_ID,
+        [Query.equal('client_id', clientId)]
+      );
+      return documents;
+    } catch (error) {
+      console.error("Error fetching client documents:", error);
+      return [];
+    }
+  },
+
+  getDocumentUrl: async (fileId) => {
+    try {
+      const url = await storage.getFileView(STORAGE_BUCKET_ID, fileId);
+      return url.href;
+    } catch (error) {
+      console.error("Error getting document URL:", error);
+      throw error;
+    }
+  },
+
+  deleteClientDocument: async (documentId, filePath) => {
+    try {
+      // Delete file from storage
+      await storage.deleteFile(STORAGE_BUCKET_ID, filePath);
+
+      // Delete document from database
+      await databases.deleteDocument(
+        DATABASE_ID,
+        CLIENT_DOCUMENTS_COLLECTION_ID,
+        documentId
+      );
+      return true;
+    } catch (error) {
+      console.error("Error deleting client document:", error);
+      return false;
+    }
+  },
+
+  // Local Storage Sync (Example - Adapt as needed)
+  syncAppwriteClientsToLocal: async () => {
+    try {
+      const clients = await this.getClients();
+      localStorage.setItem("appwrite-clients", JSON.stringify(clients));
+    } catch (error) {
+      console.error("Error syncing Appwrite clients to local storage:", error);
+    }
+  },
+
+  syncAppwriteServesToLocal: async () => {
+    try {
+      const serves = await this.getServeAttempts();
+      localStorage.setItem("appwrite-serves", JSON.stringify(serves));
+    } catch (error) {
+      console.error("Error syncing Appwrite serves to local storage:", error);
     }
   }
 };
+
+export { appwrite };

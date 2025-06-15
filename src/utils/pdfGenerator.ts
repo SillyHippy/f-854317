@@ -1,8 +1,8 @@
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import { ServeAttemptData } from '@/types/ServeAttemptData';
 
-// Use direct GitHub link to the public PDF file
-const affidavitTemplateUrl = 'https://github.com/SillyHippy/f-854317/raw/main/public/Templates/NAPPS-Affidavit%20form%20filled.pdf';
+// Use local template file instead of GitHub URL
+const affidavitTemplateUrl = '/Templates/NAPPS-Affidavit%20form%20filled.pdf';
 
 export interface AffidavitData {
   clientName: string;
@@ -22,14 +22,13 @@ export interface AffidavitData {
 export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> => {
   try {
     console.log('Starting PDF generation with data:', data);
-    console.log(`Attempting to load template from GitHub URL: ${affidavitTemplateUrl}`);
+    console.log(`Attempting to load template from local URL: ${affidavitTemplateUrl}`);
     
     let pdfDoc: PDFDocument;
 
     try {
       const response = await fetch(affidavitTemplateUrl, { 
-        cache: 'no-cache',
-        mode: 'cors' // Enable CORS for cross-origin request
+        cache: 'no-cache'
       });
 
       if (!response.ok) {
@@ -48,7 +47,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
       console.error('❌ Failed to load or parse PDF template:', error);
       let errorMessage = 'Failed to load the affidavit template.\n\n';
       errorMessage += `URL: ${affidavitTemplateUrl}\n`;
-      errorMessage += 'Please check your internet connection and ensure the GitHub repository is accessible.\n\n';
+      errorMessage += 'Please ensure the template file is available in the public/Templates folder.\n\n';
       if (error instanceof Error) {
         errorMessage += `Details: ${error.message}`;
       }

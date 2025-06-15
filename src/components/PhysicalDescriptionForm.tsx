@@ -170,7 +170,7 @@ const PhysicalDescriptionForm: React.FC<PhysicalDescriptionFormProps> = ({
                   <FormItem>
                     <FormLabel className="text-sm">Height</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. 5'8\"" {...field} />
+                      <Input placeholder="e.g. 5'8&quot;" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

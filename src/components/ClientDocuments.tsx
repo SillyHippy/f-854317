@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -114,13 +113,13 @@ export default function ClientDocuments({ clientId, clientName }: ClientDocument
     }
   };
 
-  const handleDownload = async (document: ClientDocument) => {
+  const handleDownload = async (doc: ClientDocument) => {
     try {
-      const url = await appwrite.getDocumentUrl(document.file_path);
+      const url = await appwrite.getDocumentUrl(doc.file_path);
       if (url) {
-        const link = document.createElement('a');
+        const link = globalThis.document.createElement('a');
         link.href = url;
-        link.download = document.file_name;
+        link.download = doc.file_name;
         link.click();
       } else {
         throw new Error("Could not generate download URL");

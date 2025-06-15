@@ -742,7 +742,7 @@ export const appwrite = {
           home_address: caseData.home_address,
           work_address: caseData.work_address,
           notes: caseData.notes,
-          status: caseData.status || 'Open',
+          status: 'Open', // Always default to 'Open' for new cases
           created_at: now,
           updated_at: now
         }

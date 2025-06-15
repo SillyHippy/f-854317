@@ -177,7 +177,10 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
     form.setValue('homeAddress', caseItem.home_address || '');
     form.setValue('workAddress', caseItem.work_address || '');
     form.setValue('notes', caseItem.notes || '');
-    form.setValue('status', caseItem.status);
+    // Convert any existing status to match our schema
+    const normalizedStatus = caseItem.status === 'Active' ? 'Open' : 
+                            caseItem.status === 'Closed' ? 'Closed' : 'Open';
+    form.setValue('status', normalizedStatus);
     setIsDialogOpen(true);
   };
 

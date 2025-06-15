@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,14 +41,14 @@ interface CaseData {
   id: string;
   client_id: string;
   case_number: string;
-  case_name: string | null; // This is actually person_entity_being_served in the database
+  case_name: string | null;
   court_name: string | null;
   plaintiff_petitioner: string | null;
   defendant_respondent: string | null;
   home_address: string | null;
   work_address: string | null;
   notes: string | null;
-  status: 'Open' | 'Closed' | 'Active'; // Allow Active from database
+  status: 'Open' | 'Closed' | 'Active' | 'Pending';
 }
 
 const caseSchema = z.object({
@@ -59,7 +60,7 @@ const caseSchema = z.object({
   homeAddress: z.string().optional(),
   workAddress: z.string().optional(),
   notes: z.string().optional(),
-  status: z.enum(['Open', 'Closed']),
+  status: z.enum(['Open', 'Closed', 'Pending']),
 });
 
 type CaseFormValues = z.infer<typeof caseSchema>;
@@ -86,7 +87,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
       homeAddress: '',
       workAddress: '',
       notes: '',
-      status: 'Open',
+      status: 'Pending',
     },
   });
 
@@ -114,7 +115,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
       const caseData = {
         client_id: client.id,
         case_number: data.caseNumber,
-        case_name: data.personEntityBeingServed, // Map to case_name field in database
+        case_name: data.personEntityBeingServed,
         court_name: data.courtName || null,
         plaintiff_petitioner: data.plaintiffPetitioner || null,
         defendant_respondent: data.defendantRespondent || null,
@@ -140,17 +141,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
 
       setIsDialogOpen(false);
       setEditingCase(null);
-      form.reset({
-        caseNumber: '',
-        personEntityBeingServed: '',
-        courtName: '',
-        plaintiffPetitioner: '',
-        defendantRespondent: '',
-        homeAddress: '',
-        workAddress: '',
-        notes: '',
-        status: 'Open',
-      });
+      form.reset();
       fetchCases();
       onUpdate?.();
     } catch (error) {
@@ -168,16 +159,24 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleEdit = (caseItem: CaseData) => {
     setEditingCase(caseItem);
     form.setValue('caseNumber', caseItem.case_number);
-    form.setValue('personEntityBeingServed', caseItem.case_name || ''); // Map from case_name field
+    form.setValue('personEntityBeingServed', caseItem.case_name || '');
     form.setValue('courtName', caseItem.court_name || '');
     form.setValue('plaintiffPetitioner', caseItem.plaintiff_petitioner || '');
     form.setValue('defendantRespondent', caseItem.defendant_respondent || '');
     form.setValue('homeAddress', caseItem.home_address || '');
     form.setValue('workAddress', caseItem.work_address || '');
     form.setValue('notes', caseItem.notes || '');
-    // Convert database status to form status
-    const normalizedStatus: 'Open' | 'Closed' = (caseItem.status === 'Active' || caseItem.status === 'Open') ? 'Open' : 'Closed';
-    form.setValue('status', normalizedStatus);
+    
+    // Handle different status values from database
+    let formStatus: 'Open' | 'Closed' | 'Pending' = 'Pending';
+    if (caseItem.status === 'Open' || caseItem.status === 'Active') {
+      formStatus = 'Open';
+    } else if (caseItem.status === 'Closed') {
+      formStatus = 'Closed';
+    } else {
+      formStatus = 'Pending';
+    }
+    form.setValue('status', formStatus);
     setIsDialogOpen(true);
   };
 
@@ -205,17 +204,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleDialogClose = () => {
     setIsDialogOpen(false);
     setEditingCase(null);
-    form.reset({
-      caseNumber: '',
-      personEntityBeingServed: '',
-      courtName: '',
-      plaintiffPetitioner: '',
-      defendantRespondent: '',
-      homeAddress: '',
-      workAddress: '',
-      notes: '',
-      status: 'Open',
-    });
+    form.reset();
   };
 
   return (
@@ -229,7 +218,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
               Add Case
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingCase ? 'Edit Case' : 'Add New Case'}
@@ -265,6 +254,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
                               <SelectValue placeholder="Select status" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="Pending">Pending</SelectItem>
                               <SelectItem value="Open">Open</SelectItem>
                               <SelectItem value="Closed">Closed</SelectItem>
                             </SelectContent>
@@ -297,7 +287,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
                     <FormItem>
                       <FormLabel>Court Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter court name" {...field} />
+                        <Input placeholder="e.g., Superior Court of California, County of Los Angeles" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -418,14 +408,24 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
             </CardHeader>
             <CardContent>
               <div className="space-y-1 text-sm">
+                <p>
+                  <strong>Case Number:</strong> {caseItem.case_number}
+                </p>
                 {caseItem.court_name && (
                   <p>
                     <strong>Court:</strong> {caseItem.court_name}
                   </p>
                 )}
-                <p>
-                  <strong>Case Number:</strong> {caseItem.case_number}
-                </p>
+                {caseItem.plaintiff_petitioner && (
+                  <p>
+                    <strong>Plaintiff:</strong> {caseItem.plaintiff_petitioner}
+                  </p>
+                )}
+                {caseItem.defendant_respondent && (
+                  <p>
+                    <strong>Defendant:</strong> {caseItem.defendant_respondent}
+                  </p>
+                )}
                 {caseItem.home_address && (
                   <p className="flex items-center gap-1">
                     <strong>Home:</strong>
@@ -460,7 +460,13 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
                   </p>
                 )}
                 <p>
-                  <strong>Status:</strong> <Badge variant={caseItem.status === 'Open' || caseItem.status === 'Active' ? 'default' : 'secondary'}>{caseItem.status === 'Active' ? 'Open' : caseItem.status}</Badge>
+                  <strong>Status:</strong> 
+                  <Badge variant={
+                    caseItem.status === 'Open' || caseItem.status === 'Active' ? 'default' : 
+                    caseItem.status === 'Pending' ? 'secondary' : 'outline'
+                  }>
+                    {caseItem.status === 'Active' ? 'Open' : caseItem.status}
+                  </Badge>
                 </p>
               </div>
             </CardContent>

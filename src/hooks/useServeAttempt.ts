@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +7,6 @@ import { appwrite } from "@/lib/appwrite";
 import { getServeAttemptsCount } from "@/utils/appwriteStorage";
 import { ClientData } from "@/components/ClientForm";
 import { ServeAttemptData } from "@/types/ServeAttemptData";
-import { PhysicalDescriptionData } from "@/components/PhysicalDescriptionForm";
 
 interface ClientCase {
   caseNumber: string;
@@ -50,7 +48,7 @@ export const useServeAttempt = (clients: ClientData[]) => {
       notes: "",
       status: "completed",
       serviceAddress: "",
-      addressType: "home",
+      addressType: "custom",
     },
   });
 
@@ -164,7 +162,7 @@ export const useServeAttempt = (clients: ClientData[]) => {
     form.setValue("clientId", clientId);
     form.setValue("caseNumber", "");
     form.setValue("serviceAddress", "");
-    form.setValue("addressType", "home");
+    form.setValue("addressType", "custom");
     setSelectedCase(null);
     setAddressSearchTerm("");
   };
@@ -174,14 +172,9 @@ export const useServeAttempt = (clients: ClientData[]) => {
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseNumber);
     
-    // Reset address selection
-    form.setValue("addressType", "home");
-    if (caseItem?.homeAddress) {
-      form.setValue("serviceAddress", caseItem.homeAddress);
-    } else if (caseItem?.workAddress) {
-      form.setValue("addressType", "work");
-      form.setValue("serviceAddress", caseItem.workAddress);
-    }
+    // Reset address selection when case changes
+    form.setValue("addressType", "custom");
+    form.setValue("serviceAddress", "");
     
     if (selectedClient?.id) {
       const count = await getServeAttemptsCount(selectedClient.id, caseNumber);
@@ -201,14 +194,9 @@ export const useServeAttempt = (clients: ClientData[]) => {
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseItem.caseNumber);
     
-    // Set default address
-    form.setValue("addressType", "home");
-    if (caseItem.homeAddress) {
-      form.setValue("serviceAddress", caseItem.homeAddress);
-    } else if (caseItem.workAddress) {
-      form.setValue("addressType", "work");
-      form.setValue("serviceAddress", caseItem.workAddress);
-    }
+    // Reset address selection
+    form.setValue("addressType", "custom");
+    form.setValue("serviceAddress", "");
     
     if (caseItem.clientId) {
       form.setValue("clientId", caseItem.clientId);

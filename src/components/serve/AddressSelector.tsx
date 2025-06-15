@@ -47,6 +47,11 @@ const AddressSelector: React.FC<AddressSelectorProps> = ({
           <FormLabel>Service Address (Optional)</FormLabel>
           <FormControl>
             <div className="space-y-3">
+              <Input 
+                placeholder="Enter the actual service address (optional)"
+                {...field}
+              />
+              
               {(selectedCase?.homeAddress || selectedCase?.workAddress) && (
                 <FormField
                   control={form.control}
@@ -62,51 +67,23 @@ const AddressSelector: React.FC<AddressSelectorProps> = ({
                           {selectedCase?.homeAddress && (
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="home" id="home" />
-                              <Label htmlFor="home" className="text-xs cursor-pointer flex-1">
-                                Home Address: {selectedCase.homeAddress}
+                              <Label htmlFor="home" className="text-sm cursor-pointer flex-1">
+                                Use Home Address: {selectedCase.homeAddress}
                               </Label>
                             </div>
                           )}
                           {selectedCase?.workAddress && (
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="work" id="work" />
-                              <Label htmlFor="work" className="text-xs cursor-pointer flex-1">
-                                Work Address: {selectedCase.workAddress}
+                              <Label htmlFor="work" className="text-sm cursor-pointer flex-1">
+                                Use Work Address: {selectedCase.workAddress}
                               </Label>
                             </div>
                           )}
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="custom" id="custom" />
-                            <Label htmlFor="custom" className="text-xs cursor-pointer">
-                              Custom Address
-                            </Label>
-                          </div>
                         </RadioGroup>
                       </FormControl>
                     </FormItem>
                   )}
-                />
-              )}
-              
-              {addressType === "custom" && (
-                <Input 
-                  placeholder="Enter the actual service address"
-                  {...field}
-                />
-              )}
-              
-              {addressType !== "custom" && addressType && (
-                <Input 
-                  {...field}
-                  readOnly
-                  className="bg-muted"
-                />
-              )}
-              
-              {(!selectedCase?.homeAddress && !selectedCase?.workAddress) && (
-                <Input 
-                  placeholder="Enter the actual service address (optional)"
-                  {...field}
                 />
               )}
             </div>

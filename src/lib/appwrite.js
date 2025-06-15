@@ -76,8 +76,7 @@ const appwrite = {
         try {
             const response = await databases.listDocuments(
                 DATABASE_ID,
-                COLLECTIONS.CLIENTS,
-                [Query.orderAsc('name')]
+                COLLECTIONS.CLIENTS
             );
             console.log("Clients listed successfully:", response.documents);
             return response.documents;
@@ -245,6 +244,36 @@ const appwrite = {
             return response.documents;
         } catch (error) {
             console.error("Error listing serve attempts:", error);
+            throw error;
+        }
+    },
+
+    // Sync serve attempts from Appwrite to local storage
+    syncAppwriteServesToLocal: async () => {
+        try {
+            const serves = await appwrite.getServeAttempts();
+            const formattedServes = serves.map(serve => ({
+                id: serve.$id,
+                clientId: serve.client_id,
+                clientName: serve.client_name,
+                clientEmail: serve.client_email,
+                caseNumber: serve.case_number,
+                caseName: serve.case_name,
+                serviceAddress: serve.service_address,
+                personServed: serve.person_served,
+                date: serve.date,
+                time: serve.time,
+                notes: serve.notes,
+                timestamp: serve.timestamp,
+                served: serve.served,
+                photos: serve.photos || []
+            }));
+            
+            localStorage.setItem('serve-tracker-serves', JSON.stringify(formattedServes));
+            console.log(`Synced ${formattedServes.length} serve attempts to local storage`);
+            return formattedServes;
+        } catch (error) {
+            console.error("Error syncing serves to local storage:", error);
             throw error;
         }
     },

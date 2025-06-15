@@ -131,10 +131,7 @@ const appwrite = {
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.CLIENT_CASES,
-                [
-                    Query.equal('client_id', clientId),
-                    Query.orderAsc('case_number')
-                ]
+                [Query.equal('client_id', clientId)]
             );
             console.log("Cases listed successfully:", response.documents);
             return response.documents;
@@ -214,10 +211,7 @@ const appwrite = {
             const response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.SERVE_ATTEMPTS,
-                [
-                    Query.equal('client_id', clientId),
-                    Query.orderDesc('timestamp')
-                ]
+                [Query.equal('client_id', clientId)]
             );
             console.log("Serve attempts listed successfully:", response.documents);
             return response.documents;
@@ -225,20 +219,13 @@ const appwrite = {
             console.error("Error listing serve attempts:", error);
             throw error;
         }
-    },
-
-    // Method to get all serve attempts with optional pagination
+    },    // Method to get all serve attempts with optional pagination
     getServeAttempts: async (limit = 100, offset = 0) => {
         console.log(`Fetching serve attempts with limit: ${limit}, offset: ${offset}`);
         try {
             const response = await databases.listDocuments(
                 DATABASE_ID,
-                COLLECTIONS.SERVE_ATTEMPTS,
-                [
-                    Query.orderDesc('timestamp'),
-                    Query.limit(limit),
-                    Query.offset(offset)
-                ]
+                COLLECTIONS.SERVE_ATTEMPTS
             );
             console.log("Serve attempts listed successfully:", response.documents);
             return response.documents;

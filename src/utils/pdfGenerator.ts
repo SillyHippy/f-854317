@@ -139,48 +139,6 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           return false;
         };
         
-        // Get case information from the first serve attempt
-        const firstServe = data.serveAttempts[0];
-        let courtName = '';
-        let plaintiffPetitioner = '';
-        let defendantRespondent = '';
-        
-        if (firstServe && firstServe.caseNumber) {
-          courtName = ''; // This should come from case data
-          plaintiffPetitioner = data.caseName || ''; // This should come from case data
-          defendantRespondent = ''; // This should come from case data
-        }
-        
-        // Fill court name only if available
-        if (courtName) {
-          tryFillField([
-            'Court', 
-            'court_name', 
-            'NAME OF COURT',
-            '(NAME OF COURT)'
-          ], courtName);
-        }
-        
-        // Fill plaintiff/petitioner only if available
-        if (plaintiffPetitioner) {
-          tryFillField([
-            'Plaintiff/Petitioner', 
-            'plaintiff', 
-            'petitioner',
-            'PLAINTIFF/PETITIONER'
-          ], plaintiffPetitioner);
-        }
-        
-        // Fill defendant/respondent only if available
-        if (defendantRespondent) {
-          tryFillField([
-            'Defendant/Respondent', 
-            'defendant', 
-            'respondent',
-            'DEFENDANT/RESPONDENT'
-          ], defendantRespondent);
-        }
-        
         // Fill case number if available
         if (data.caseNumber) {
           tryFillField([
@@ -191,7 +149,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           ], data.caseNumber);
         }
         
-        // Fill "NAME OF PERSON / ENTITY BEING SERVED" field - this is the correct field for the person being served
+        // Fill "NAME OF PERSON / ENTITY BEING SERVED" field - NEVER put this in PLAINTIFF/PETITIONER
         if (data.personEntityBeingServed) {
           tryFillField([
             'NAME OF PERSON / ENTITY BEING SERVED',
@@ -203,6 +161,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         }
         
         // Use the actual service address from the serve attempts, not the client address
+        const firstServe = data.serveAttempts[0];
         const serviceAddress = firstServe?.serviceAddress;
         if (serviceAddress) {
           // Fill the full address in residence address field
@@ -248,7 +207,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               
               const attemptNum = index + 1;
               
-              // Fill Service Attempts section
+              // Fill Service Attempts section with BOTH dates and times
               tryFillField([
                 `Service attempt ${attemptNum} Date`, 
                 `attempt_${attemptNum}_date`,
@@ -264,15 +223,14 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             }
           });
 
-          // Find the most recent successful attempt for main service details
-          const successfulAttempt = sortedAttempts.find(attempt => attempt.status === 'completed');
-          const mainAttempt = successfulAttempt || sortedAttempts[sortedAttempts.length - 1];
+          // Get the MOST RECENT attempt for main service details
+          const mostRecentAttempt = sortedAttempts[sortedAttempts.length - 1];
           
-          // Fill the main service date and time (On___ AT___ fields)
-          if (successfulAttempt && successfulAttempt.timestamp) {
-            const date = new Date(successfulAttempt.timestamp);
+          // Fill the main service date and time with MOST RECENT attempt only
+          if (mostRecentAttempt && mostRecentAttempt.timestamp) {
+            const date = new Date(mostRecentAttempt.timestamp);
             
-            // Try multiple field name variations for service date
+            // Fill service DATE
             tryFillField([
               'DATE', 
               'service_date', 
@@ -282,7 +240,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               'Service Date'
             ], date.toLocaleDateString());
             
-            // Try multiple field name variations for service time
+            // Fill service TIME  
             tryFillField([
               'TIME', 
               'service_time', 

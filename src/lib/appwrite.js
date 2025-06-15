@@ -759,7 +759,7 @@ export const appwrite = {
       const response = await databases.updateDocument(
         DATABASE_ID,
         CASES_COLLECTION_ID,
-        caseId,
+        caseId, // This was missing - the documentId parameter
         {
           case_number: caseData.case_number,
           case_name: caseData.case_name, // This field stores person_entity_being_served

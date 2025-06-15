@@ -1,7 +1,6 @@
 
-import jsPDF from 'jspdf';
+import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import { ServeAttemptData } from '@/components/ServeAttempt';
-import { ClientData } from '@/components/ClientForm';
 
 export interface AffidavitData {
   clientName: string;
@@ -9,149 +8,148 @@ export interface AffidavitData {
   caseNumber: string;
   caseName?: string;
   serveAttempts: ServeAttemptData[];
-  processServerName: string;
-  processServerAddress: string;
-  notaryName?: string;
-  notaryCommissionExpires?: string;
 }
 
 export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> => {
   try {
     // Load the existing PDF template
     const templateUrl = '/Templates/NAPPS-Affidavit form filled.pdf';
+    const response = await fetch(templateUrl);
     
-    // For now, we'll create a basic PDF with the serve attempt data
-    // TODO: Implement proper PDF form filling with the template
-    const pdf = new jsPDF();
-    
-    // Header
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('AFFIDAVIT OF SERVICE', 105, 20, { align: 'center' });
-    
-    // Case information
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Case: ${data.caseNumber}`, 20, 40);
-    if (data.caseName) {
-      pdf.text(`Case Name: ${data.caseName}`, 20, 50);
+    if (!response.ok) {
+      throw new Error(`Failed to load template: ${response.statusText}`);
     }
     
-    // Client information
-    pdf.text(`Defendant: ${data.clientName}`, 20, 65);
-    pdf.text(`Address: ${data.clientAddress}`, 20, 75);
+    const existingPdfBytes = await response.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(existingPdfBytes);
+    const form = pdfDoc.getForm();
     
-    // Service attempts
-    let yPosition = 95;
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('SERVICE ATTEMPTS:', 20, yPosition);
-    yPosition += 10;
+    // Get all form fields to see what's available
+    const fields = form.getFields();
+    console.log('Available form fields:', fields.map(field => field.getName()));
     
-    pdf.setFont('helvetica', 'normal');
-    data.serveAttempts.forEach((attempt, index) => {
-      const attemptDate = new Date(attempt.timestamp).toLocaleDateString();
-      const attemptTime = new Date(attempt.timestamp).toLocaleTimeString();
-      
-      pdf.text(`Attempt #${index + 1}:`, 20, yPosition);
-      pdf.text(`Date: ${attemptDate} at ${attemptTime}`, 30, yPosition + 8);
-      pdf.text(`Status: ${attempt.status === 'completed' ? 'Successful' : 'Failed'}`, 30, yPosition + 16);
-      
-      if (attempt.notes) {
-        const notes = pdf.splitTextToSize(`Notes: ${attempt.notes}`, 160);
-        pdf.text(notes, 30, yPosition + 24);
-        yPosition += notes.length * 8;
+    // Fill common case information
+    try {
+      // Case number field
+      const caseNumberField = form.getTextField('case_number');
+      if (caseNumberField) {
+        caseNumberField.setText(data.caseNumber || '');
       }
-      
-      yPosition += 35;
-      
-      // Add new page if needed
-      if (yPosition > 250) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-    });
-    
-    // Signature area
-    yPosition += 40;
-    if (yPosition > 230) {
-      pdf.addPage();
-      yPosition = 20;
+    } catch (e) {
+      console.log('Case number field not found or not fillable');
     }
     
-    pdf.text('_________________________________', 20, yPosition);
-    pdf.text('Process Server Signature', 20, yPosition + 8);
-    pdf.text(`Date: ${new Date().toLocaleDateString()}`, 20, yPosition + 20);
+    try {
+      // Case name field
+      const caseNameField = form.getTextField('case_name');
+      if (caseNameField) {
+        caseNameField.setText(data.caseName || '');
+      }
+    } catch (e) {
+      console.log('Case name field not found or not fillable');
+    }
     
-    // Save the PDF
-    const fileName = `Affidavit_${data.caseNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
-    pdf.save(fileName);
+    try {
+      // Defendant name
+      const defendantField = form.getTextField('defendant_name');
+      if (defendantField) {
+        defendantField.setText(data.clientName || '');
+      }
+    } catch (e) {
+      console.log('Defendant field not found or not fillable');
+    }
+    
+    try {
+      // Defendant address
+      const addressField = form.getTextField('defendant_address');
+      if (addressField) {
+        addressField.setText(data.clientAddress || '');
+      }
+    } catch (e) {
+      console.log('Address field not found or not fillable');
+    }
+    
+    // Fill service attempt information
+    if (data.serveAttempts && data.serveAttempts.length > 0) {
+      // Use the most recent successful attempt or the last attempt
+      const successfulAttempt = data.serveAttempts.find(attempt => attempt.status === 'completed');
+      const attemptToUse = successfulAttempt || data.serveAttempts[data.serveAttempts.length - 1];
+      
+      try {
+        // Service date
+        const serviceDateField = form.getTextField('service_date');
+        if (serviceDateField && attemptToUse.timestamp) {
+          const date = new Date(attemptToUse.timestamp);
+          serviceDateField.setText(date.toLocaleDateString());
+        }
+      } catch (e) {
+        console.log('Service date field not found or not fillable');
+      }
+      
+      try {
+        // Service time
+        const serviceTimeField = form.getTextField('service_time');
+        if (serviceTimeField && attemptToUse.timestamp) {
+          const date = new Date(attemptToUse.timestamp);
+          serviceTimeField.setText(date.toLocaleTimeString());
+        }
+      } catch (e) {
+        console.log('Service time field not found or not fillable');
+      }
+      
+      try {
+        // Service method/notes
+        const serviceMethodField = form.getTextField('service_method');
+        if (serviceMethodField) {
+          const method = attemptToUse.status === 'completed' ? 'Personal Service' : 'Attempted Service';
+          serviceMethodField.setText(method);
+        }
+      } catch (e) {
+        console.log('Service method field not found or not fillable');
+      }
+      
+      try {
+        // Service notes
+        const notesField = form.getTextField('service_notes');
+        if (notesField && attemptToUse.notes) {
+          notesField.setText(attemptToUse.notes);
+        }
+      } catch (e) {
+        console.log('Notes field not found or not fillable');
+      }
+    }
+    
+    try {
+      // Today's date for affidavit date
+      const affidavitDateField = form.getTextField('affidavit_date');
+      if (affidavitDateField) {
+        affidavitDateField.setText(new Date().toLocaleDateString());
+      }
+    } catch (e) {
+      console.log('Affidavit date field not found or not fillable');
+    }
+    
+    // Flatten the form to make it non-editable
+    form.flatten();
+    
+    // Save the filled PDF
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Affidavit_${data.caseNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up
+    URL.revokeObjectURL(url);
     
   } catch (error) {
     console.error('Error generating PDF:', error);
-    throw error;
-  }
-};
-
-export const generateServeReportPDF = async (
-  client: ClientData,
-  serves: ServeAttemptData[]
-): Promise<void> => {
-  try {
-    const pdf = new jsPDF();
-    
-    // Header
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('SERVICE REPORT', 105, 20, { align: 'center' });
-    
-    // Client information
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Client: ${client.name}`, 20, 40);
-    pdf.text(`Address: ${client.address}`, 20, 50);
-    pdf.text(`Email: ${client.email || 'N/A'}`, 20, 60);
-    pdf.text(`Phone: ${client.phone || 'N/A'}`, 20, 70);
-    
-    // Service attempts
-    let yPosition = 90;
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(`TOTAL ATTEMPTS: ${serves.length}`, 20, yPosition);
-    yPosition += 20;
-    
-    serves.forEach((serve, index) => {
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(`Attempt #${index + 1}`, 20, yPosition);
-      yPosition += 8;
-      
-      pdf.setFont('helvetica', 'normal');
-      const date = new Date(serve.timestamp).toLocaleDateString();
-      const time = new Date(serve.timestamp).toLocaleTimeString();
-      
-      pdf.text(`Date: ${date} at ${time}`, 25, yPosition);
-      pdf.text(`Case: ${serve.caseNumber || 'N/A'}`, 25, yPosition + 8);
-      pdf.text(`Status: ${serve.status === 'completed' ? 'Successful' : 'Failed'}`, 25, yPosition + 16);
-      
-      if (serve.notes) {
-        const notes = pdf.splitTextToSize(`Notes: ${serve.notes}`, 160);
-        pdf.text(notes, 25, yPosition + 24);
-        yPosition += notes.length * 8;
-      }
-      
-      yPosition += 35;
-      
-      // Add new page if needed
-      if (yPosition > 250) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-    });
-    
-    // Save the PDF
-    const fileName = `Service_Report_${client.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-    pdf.save(fileName);
-    
-  } catch (error) {
-    console.error('Error generating service report PDF:', error);
     throw error;
   }
 };

@@ -34,9 +34,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         clientAddress: client.address,
         caseNumber: caseNumber || 'N/A',
         caseName: caseName,
-        serveAttempts: serves,
-        processServerName: '',
-        processServerAddress: ''
+        serveAttempts: serves
       };
 
       await generateAffidavitPDF(affidavitData);
@@ -44,7 +42,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
       toast({
         title: "Affidavit Generated",
         description: "The affidavit PDF has been downloaded successfully.",
-        variant: "success"
+        variant: "default"
       });
       
       setIsOpen(false);

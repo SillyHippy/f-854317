@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -98,7 +97,11 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const fetchCases = async () => {
     try {
       const caseList = await appwrite.getClientCases(client.id);
-      setCases(caseList);
+      const formattedCases = caseList.map((caseDoc: any) => ({
+        ...caseDoc,
+        id: caseDoc.$id,
+      }));
+      setCases(formattedCases as CaseData[]);
     } catch (error) {
       console.error('Error fetching cases:', error);
       toast({
@@ -183,7 +186,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleDelete = async (caseItem: CaseData) => {
     if (window.confirm(`Are you sure you want to delete case ${caseItem.case_number}?`)) {
       try {
-        await appwrite.deleteCase(caseItem.id);
+        await appwrite.deleteClientCase(caseItem.id);
         toast({
           title: "Case deleted",
           description: "Case has been deleted successfully.",

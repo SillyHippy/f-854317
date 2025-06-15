@@ -724,7 +724,7 @@ export const appwrite = {
     }
   },
 
-  async createClientCase(caseData) {
+  async createCase(caseData) {
     try {
       const caseId = ID.unique();
       const now = new Date().toISOString();
@@ -733,13 +733,16 @@ export const appwrite = {
         CASES_COLLECTION_ID,
         caseId,
         {
-          client_id: caseData.clientId,
-          case_number: caseData.caseNumber,
-          case_name: caseData.caseName,
-          description: caseData.description || "",
-          status: caseData.status || "Pending",
-          home_address: caseData.homeAddress || "",
-          work_address: caseData.workAddress || "",
+          client_id: caseData.client_id,
+          case_number: caseData.case_number,
+          person_entity_being_served: caseData.person_entity_being_served,
+          court_name: caseData.court_name,
+          plaintiff_petitioner: caseData.plaintiff_petitioner,
+          defendant_respondent: caseData.defendant_respondent,
+          home_address: caseData.home_address,
+          work_address: caseData.work_address,
+          notes: caseData.notes,
+          status: caseData.status || 'Open',
           created_at: now,
           updated_at: now
         }
@@ -751,25 +754,28 @@ export const appwrite = {
     }
   },
 
-  async updateClientCase(caseId, caseData) {
+  async updateCase(caseId, caseData) {
     try {
       const response = await databases.updateDocument(
         DATABASE_ID,
         CASES_COLLECTION_ID,
         caseId,
         {
-          case_number: caseData.caseNumber,
-          case_name: caseData.caseName || "",
-          description: caseData.description || "",
-          home_address: caseData.homeAddress || "",
-          work_address: caseData.workAddress || "",
+          case_number: caseData.case_number,
+          person_entity_being_served: caseData.person_entity_being_served,
+          court_name: caseData.court_name,
+          plaintiff_petitioner: caseData.plaintiff_petitioner,
+          defendant_respondent: caseData.defendant_respondent,
+          home_address: caseData.home_address,
+          work_address: caseData.work_address,
+          notes: caseData.notes,
           status: caseData.status,
           updated_at: new Date().toISOString()
         }
       );
       return response;
     } catch (error) {
-      console.error('Error updating client case:', error);
+      console.error('Error updating case:', error);
       throw error;
     }
   },

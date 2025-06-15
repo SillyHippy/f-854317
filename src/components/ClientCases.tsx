@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -130,20 +131,28 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
         toast({
           title: "Case updated",
           description: "Case has been updated successfully.",
-          variant: "success",
         });
       } else {
         await appwrite.createCase(caseData);
         toast({
           title: "Case created",
           description: "New case has been created successfully.",
-          variant: "success",
         });
       }
 
       setIsDialogOpen(false);
       setEditingCase(null);
-      form.reset();
+      form.reset({
+        caseNumber: '',
+        personEntityBeingServed: '',
+        courtName: '',
+        plaintiffPetitioner: '',
+        defendantRespondent: '',
+        homeAddress: '',
+        workAddress: '',
+        notes: '',
+        status: 'Open',
+      });
       fetchCases();
       onUpdate?.();
     } catch (error) {
@@ -179,7 +188,6 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
         toast({
           title: "Case deleted",
           description: "Case has been deleted successfully.",
-          variant: "success",
         });
         fetchCases();
         onUpdate?.();
@@ -192,6 +200,22 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
         });
       }
     }
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setEditingCase(null);
+    form.reset({
+      caseNumber: '',
+      personEntityBeingServed: '',
+      courtName: '',
+      plaintiffPetitioner: '',
+      defendantRespondent: '',
+      homeAddress: '',
+      workAddress: '',
+      notes: '',
+      status: 'Open',
+    });
   };
 
   return (
@@ -370,11 +394,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingCase(null);
-                      form.reset();
-                    }}
+                    onClick={handleDialogClose}
                   >
                     Cancel
                   </Button>
@@ -462,3 +482,4 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
 };
 
 export default ClientCases;
+

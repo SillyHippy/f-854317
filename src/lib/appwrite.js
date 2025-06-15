@@ -1,3 +1,4 @@
+
 import { Client, Account, Databases, Storage, Query, ID } from "appwrite";
 import { APPWRITE_CONFIG } from "@/config/backendConfig";
 
@@ -134,7 +135,7 @@ const appwrite = {
     }
   },
 
-  updateClient: async (clientId, clientData) {
+  updateClient: async (clientId, clientData) => {
     try {
       const response = await databases.updateDocument(
         DATABASE_ID,
@@ -490,6 +491,21 @@ const appwrite = {
     } catch (error) {
       console.error("Error deleting client document:", error);
       return false;
+    }
+  },
+
+  // Additional helper methods
+  getTotalServeAttemptsCount: async () => {
+    try {
+      const { total } = await databases.listDocuments(
+        DATABASE_ID,
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        [Query.limit(1)]
+      );
+      return total;
+    } catch (error) {
+      console.error("Error getting total serve attempts count:", error);
+      return 0;
     }
   },
 

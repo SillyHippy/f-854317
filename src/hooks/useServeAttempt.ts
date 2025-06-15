@@ -24,7 +24,7 @@ const serveAttemptSchema = z.object({
   notes: z.string().optional(),
   status: z.enum(["completed", "failed"]),
   serviceAddress: z.string().optional(),
-  addressType: z.enum(["home", "work", "custom"]).optional(),
+  addressType: z.string().default("custom"),
 });
 
 type ServeFormValues = z.infer<typeof serveAttemptSchema>;
@@ -90,6 +90,7 @@ export const useServeAttempt = (clients: ClientData[]) => {
         }
 
         setAllCases(activeCases);
+        console.log("All cases loaded:", activeCases);
       } catch (error) {
         console.error("Error fetching all cases:", error);
         toast({
@@ -124,6 +125,7 @@ export const useServeAttempt = (clients: ClientData[]) => {
             }));
 
           setClientCases(activeCases);
+          console.log("Client cases loaded:", activeCases);
         } catch (error) {
           console.error("Error fetching client cases:", error);
           toast({
@@ -176,6 +178,8 @@ export const useServeAttempt = (clients: ClientData[]) => {
     form.setValue("addressType", "custom");
     form.setValue("serviceAddress", "");
     
+    console.log("Case changed:", caseItem);
+    
     if (selectedClient?.id) {
       const count = await getServeAttemptsCount(selectedClient.id, caseNumber);
       setCaseAttemptCount(count);
@@ -197,6 +201,8 @@ export const useServeAttempt = (clients: ClientData[]) => {
     // Reset address selection
     form.setValue("addressType", "custom");
     form.setValue("serviceAddress", "");
+    
+    console.log("Address selected:", caseItem);
     
     if (caseItem.clientId) {
       form.setValue("clientId", caseItem.clientId);

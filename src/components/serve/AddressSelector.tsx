@@ -37,61 +37,78 @@ const AddressSelector: React.FC<AddressSelectorProps> = ({
   };
 
   const addressType = form.watch("addressType");
+  const hasAddresses = selectedCase?.homeAddress || selectedCase?.workAddress;
+
+  console.log("AddressSelector render:", {
+    selectedCase,
+    hasAddresses,
+    homeAddress: selectedCase?.homeAddress,
+    workAddress: selectedCase?.workAddress,
+    addressType
+  });
 
   return (
-    <FormField
-      control={form.control}
-      name="serviceAddress"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Service Address (Optional)</FormLabel>
-          <FormControl>
-            <div className="space-y-3">
+    <div className="space-y-4">
+      <FormField
+        control={form.control}
+        name="serviceAddress"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Service Address (Optional)</FormLabel>
+            <FormControl>
               <Input 
                 placeholder="Enter the actual service address (optional)"
                 {...field}
               />
-              
-              {(selectedCase?.homeAddress || selectedCase?.workAddress) && (
-                <FormField
-                  control={form.control}
-                  name="addressType"
-                  render={({ field: addressTypeField }) => (
-                    <FormItem>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={handleAddressTypeChange}
-                          value={addressTypeField.value || "custom"}
-                          className="space-y-2"
-                        >
-                          {selectedCase?.homeAddress && (
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="home" id="home" />
-                              <Label htmlFor="home" className="text-sm cursor-pointer flex-1">
-                                Use Home Address: {selectedCase.homeAddress}
-                              </Label>
-                            </div>
-                          )}
-                          {selectedCase?.workAddress && (
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="work" id="work" />
-                              <Label htmlFor="work" className="text-sm cursor-pointer flex-1">
-                                Use Work Address: {selectedCase.workAddress}
-                              </Label>
-                            </div>
-                          )}
-                        </RadioGroup>
-                      </FormControl>
-                    </FormItem>
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      
+      {hasAddresses && (
+        <FormField
+          control={form.control}
+          name="addressType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Use Existing Address</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={handleAddressTypeChange}
+                  value={field.value || "custom"}
+                  className="space-y-2"
+                >
+                  {selectedCase?.homeAddress && (
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="home" id="home" />
+                      <Label htmlFor="home" className="text-sm cursor-pointer flex-1">
+                        Use Home Address: {selectedCase.homeAddress}
+                      </Label>
+                    </div>
                   )}
-                />
-              )}
-            </div>
-          </FormControl>
-          <FormMessage />
-        </FormItem>
+                  {selectedCase?.workAddress && (
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="work" id="work" />
+                      <Label htmlFor="work" className="text-sm cursor-pointer flex-1">
+                        Use Work Address: {selectedCase.workAddress}
+                      </Label>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="custom" id="custom" />
+                    <Label htmlFor="custom" className="text-sm cursor-pointer flex-1">
+                      Custom address (enter above)
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       )}
-    />
+    </div>
   );
 };
 

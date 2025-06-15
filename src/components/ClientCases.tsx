@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,14 +40,14 @@ interface CaseData {
   id: string;
   client_id: string;
   case_number: string;
-  person_entity_being_served: string | null;
+  case_name: string | null; // This is actually person_entity_being_served in the database
   court_name: string | null;
   plaintiff_petitioner: string | null;
   defendant_respondent: string | null;
   home_address: string | null;
   work_address: string | null;
   notes: string | null;
-  status: 'Open' | 'Closed';
+  status: 'Open' | 'Closed' | 'Active'; // Allow Active from database
 }
 
 const caseSchema = z.object({
@@ -116,7 +114,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
       const caseData = {
         client_id: client.id,
         case_number: data.caseNumber,
-        person_entity_being_served: data.personEntityBeingServed || null,
+        case_name: data.personEntityBeingServed, // Map to case_name field in database
         court_name: data.courtName || null,
         plaintiff_petitioner: data.plaintiffPetitioner || null,
         defendant_respondent: data.defendantRespondent || null,
@@ -170,16 +168,15 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleEdit = (caseItem: CaseData) => {
     setEditingCase(caseItem);
     form.setValue('caseNumber', caseItem.case_number);
-    form.setValue('personEntityBeingServed', caseItem.person_entity_being_served || '');
+    form.setValue('personEntityBeingServed', caseItem.case_name || ''); // Map from case_name field
     form.setValue('courtName', caseItem.court_name || '');
     form.setValue('plaintiffPetitioner', caseItem.plaintiff_petitioner || '');
     form.setValue('defendantRespondent', caseItem.defendant_respondent || '');
     form.setValue('homeAddress', caseItem.home_address || '');
     form.setValue('workAddress', caseItem.work_address || '');
     form.setValue('notes', caseItem.notes || '');
-    // Convert any existing status to match our schema
-    const normalizedStatus = caseItem.status === 'Active' ? 'Open' : 
-                            caseItem.status === 'Closed' ? 'Closed' : 'Open';
+    // Convert database status to form status
+    const normalizedStatus: 'Open' | 'Closed' = (caseItem.status === 'Active' || caseItem.status === 'Open') ? 'Open' : 'Closed';
     form.setValue('status', normalizedStatus);
     setIsDialogOpen(true);
   };
@@ -416,7 +413,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
           <Card key={caseItem.id} className="bg-card text-card-foreground shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold leading-none tracking-tight">
-                {caseItem.person_entity_being_served || caseItem.case_number}
+                {caseItem.case_name || caseItem.case_number}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -463,7 +460,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
                   </p>
                 )}
                 <p>
-                  <strong>Status:</strong> <Badge variant={caseItem.status === 'Open' ? 'default' : 'secondary'}>{caseItem.status}</Badge>
+                  <strong>Status:</strong> <Badge variant={caseItem.status === 'Open' || caseItem.status === 'Active' ? 'default' : 'secondary'}>{caseItem.status === 'Active' ? 'Open' : caseItem.status}</Badge>
                 </p>
               </div>
             </CardContent>
@@ -485,4 +482,3 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
 };
 
 export default ClientCases;
-

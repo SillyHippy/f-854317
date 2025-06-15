@@ -735,7 +735,7 @@ export const appwrite = {
         {
           client_id: caseData.client_id,
           case_number: caseData.case_number,
-          person_entity_being_served: caseData.person_entity_being_served,
+          case_name: caseData.case_name, // This field stores person_entity_being_served
           court_name: caseData.court_name,
           plaintiff_petitioner: caseData.plaintiff_petitioner,
           defendant_respondent: caseData.defendant_respondent,
@@ -762,7 +762,7 @@ export const appwrite = {
         caseId,
         {
           case_number: caseData.case_number,
-          person_entity_being_served: caseData.person_entity_being_served,
+          case_name: caseData.case_name, // This field stores person_entity_being_served
           court_name: caseData.court_name,
           plaintiff_petitioner: caseData.plaintiff_petitioner,
           defendant_respondent: caseData.defendant_respondent,

@@ -70,34 +70,56 @@ export class PDFService {
         type: field.constructor.name
       })));
 
-      // Fill in the form fields with available data
-      this.fillFormField(form, 'caseName', data.caseName);
-      this.fillFormField(form, 'courtName', data.courtName);
-      this.fillFormField(form, 'documentsToServe', data.documentsToServe);
-      this.fillFormField(form, 'serverName', data.serverName);
-      this.fillFormField(form, 'serverAddress', data.serverAddress);
-      this.fillFormField(form, 'personServedName', data.personServedName);
-      this.fillFormField(form, 'relationshipToDefendant', data.relationshipToDefendant);
-      this.fillFormField(form, 'serviceMethod', data.serviceMethod);
-      this.fillFormField(form, 'age', data.age);
-      this.fillFormField(form, 'sex', data.sex);
-      this.fillFormField(form, 'race', data.race);
-      this.fillFormField(form, 'height', data.height);
-      this.fillFormField(form, 'weight', data.weight);
-      this.fillFormField(form, 'beard', data.beard);
-      this.fillFormField(form, 'hairColor', data.hairColor);
-      this.fillFormField(form, 'glasses', data.glasses);
-      this.fillFormField(form, 'serviceDate', data.serviceDate);
-      this.fillFormField(form, 'serviceTime', data.serviceTime);
-      this.fillFormField(form, 'serviceAddress', data.serviceAddress);
-      this.fillFormField(form, 'militaryInquiryDate', data.militaryInquiryDate);
-      this.fillFormField(form, 'militaryInquiryAddress', data.militaryInquiryAddress);
-      this.fillFormField(form, 'substituteServiceLocation', data.substituteServiceLocation);
-      this.fillFormField(form, 'substituteServicePerson', data.substituteServicePerson);
+      // Create a mapping of common field variations to try
+      const fieldMappings = {
+        // Case information
+        caseName: ['caseName', 'case_name', 'Case Name', 'Case_Name', 'CASE_NAME'],
+        caseNumber: ['caseNumber', 'case_number', 'Case Number', 'Case_Number', 'CASE_NUMBER'],
+        courtName: ['courtName', 'court_name', 'Court Name', 'Court_Name', 'COURT_NAME'],
+        
+        // Server information  
+        serverName: ['serverName', 'server_name', 'Server Name', 'Server_Name', 'SERVER_NAME'],
+        serverAddress: ['serverAddress', 'server_address', 'Server Address', 'Server_Address', 'SERVER_ADDRESS'],
+        
+        // Person served
+        personServedName: ['personServedName', 'person_served_name', 'Person Served', 'Person_Served', 'PERSON_SERVED'],
+        relationshipToDefendant: ['relationshipToDefendant', 'relationship', 'Relationship', 'RELATIONSHIP'],
+        
+        // Service details
+        serviceDate: ['serviceDate', 'service_date', 'Service Date', 'Service_Date', 'SERVICE_DATE', 'date_served', 'Date Served'],
+        serviceTime: ['serviceTime', 'service_time', 'Service Time', 'Service_Time', 'SERVICE_TIME', 'time_served', 'Time Served'],
+        serviceAddress: ['serviceAddress', 'service_address', 'Service Address', 'Service_Address', 'SERVICE_ADDRESS'],
+        serviceMethod: ['serviceMethod', 'service_method', 'Service Method', 'Service_Method', 'SERVICE_METHOD'],
+        
+        // Physical description
+        age: ['age', 'Age', 'AGE'],
+        sex: ['sex', 'Sex', 'SEX', 'gender', 'Gender'],
+        race: ['race', 'Race', 'RACE', 'ethnicity', 'Ethnicity'],
+        height: ['height', 'Height', 'HEIGHT'],
+        weight: ['weight', 'Weight', 'WEIGHT'],
+        hairColor: ['hairColor', 'hair_color', 'Hair Color', 'Hair_Color', 'HAIR_COLOR'],
+        
+        // Documents
+        documentsToServe: ['documentsToServe', 'documents_to_serve', 'Documents', 'DOCUMENTS'],
+        
+        // Military
+        militaryInquiryDate: ['militaryInquiryDate', 'military_inquiry_date', 'Military Date', 'MILITARY_DATE'],
+        militaryInquiryAddress: ['militaryInquiryAddress', 'military_inquiry_address', 'Military Address', 'MILITARY_ADDRESS'],
+        militaryServiceInquired: ['militaryServiceInquired', 'military_service_inquired', 'Military Inquiry', 'MILITARY_INQUIRY']
+      };
 
-      // Handle checkboxes
+      // Fill text fields using the mapping
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && fieldMappings[key as keyof typeof fieldMappings]) {
+          const possibleFieldNames = fieldMappings[key as keyof typeof fieldMappings];
+          this.fillFormFieldWithMapping(form, possibleFieldNames, String(value));
+        }
+      });
+
+      // Handle checkboxes specifically
       if (data.militaryServiceInquired !== undefined) {
-        this.fillCheckboxField(form, 'militaryServiceInquired', data.militaryServiceInquired);
+        const militaryFieldNames = fieldMappings.militaryServiceInquired;
+        this.fillCheckboxFieldWithMapping(form, militaryFieldNames, data.militaryServiceInquired);
       }
 
       // Keep form fillable for manual completion of remaining fields
@@ -115,52 +137,73 @@ export class PDFService {
     clientData: ClientData,
     additionalData?: Partial<AffidavitData>
   ): Promise<Uint8Array> {
+    console.log('Generating affidavit from serve data:', serveData);
+    console.log('Client data:', clientData);
+    
     const timestamp = new Date(serveData.timestamp);
     const affidavitData: AffidavitData = {
-      caseName: serveData.caseName || serveData.caseNumber,
-      courtName: additionalData?.courtName || "Superior Court",
-      documentsToServe: additionalData?.documentsToServe || "Legal Documents",
+      // Use case name or case number for the case name field
+      caseName: serveData.caseName || serveData.caseNumber || 'Unknown Case',
+      caseNumber: serveData.caseNumber || 'Unknown',
+      courtName: additionalData?.courtName || "Superior Court of California",
+      documentsToServe: additionalData?.documentsToServe || "Summons and Complaint",
       serverName: additionalData?.serverName || "Process Server",
       serverAddress: additionalData?.serverAddress || "",
-      personServedName: clientData.name,
+      personServedName: clientData.name || 'Unknown Person',
       relationshipToDefendant: additionalData?.relationshipToDefendant || "Defendant",
       serviceMethod: serveData.status === 'completed' ? 'Personal Service' : 'Attempted Service',
-      serviceDate: timestamp.toLocaleDateString(),
-      serviceTime: timestamp.toLocaleTimeString(),
-      serviceAddress: serveData.address || clientData.address,
-      militaryServiceInquired: additionalData?.militaryServiceInquired || false,
-      militaryInquiryDate: additionalData?.militaryInquiryDate || timestamp.toLocaleDateString(),
-      militaryInquiryAddress: additionalData?.militaryInquiryAddress || "",
+      serviceDate: timestamp.toLocaleDateString('en-US'),
+      serviceTime: timestamp.toLocaleTimeString('en-US'),
+      serviceAddress: serveData.address || clientData.address || 'Unknown Address',
+      militaryServiceInquired: additionalData?.militaryServiceInquired !== undefined ? additionalData.militaryServiceInquired : true,
+      militaryInquiryDate: additionalData?.militaryInquiryDate || timestamp.toLocaleDateString('en-US'),
+      militaryInquiryAddress: additionalData?.militaryInquiryAddress || "Military Records Office",
       substituteServiceLocation: additionalData?.substituteServiceLocation || "",
       substituteServicePerson: additionalData?.substituteServicePerson || "",
+      // Include additional data
       ...additionalData
     };
 
+    console.log('Final affidavit data:', affidavitData);
     return this.generateAffidavit(affidavitData);
   }
 
-  private static fillFormField(form: PDFForm, fieldName: string, value?: string) {
+  private static fillFormFieldWithMapping(form: PDFForm, possibleFieldNames: string[], value: string) {
     if (!value) return;
     
-    try {
-      const field = form.getTextField(fieldName);
-      field.setText(value);
-    } catch (error) {
-      console.warn(`Could not fill field "${fieldName}":`, error);
+    for (const fieldName of possibleFieldNames) {
+      try {
+        const field = form.getTextField(fieldName);
+        field.setText(value);
+        console.log(`Successfully filled field "${fieldName}" with value: ${value}`);
+        return; // Success, exit early
+      } catch (error) {
+        // Field doesn't exist, try next name
+        continue;
+      }
     }
+    
+    console.warn(`Could not find any matching field for: ${possibleFieldNames.join(', ')}`);
   }
 
-  private static fillCheckboxField(form: PDFForm, fieldName: string, checked: boolean) {
-    try {
-      const field = form.getCheckBox(fieldName);
-      if (checked) {
-        field.check();
-      } else {
-        field.uncheck();
+  private static fillCheckboxFieldWithMapping(form: PDFForm, possibleFieldNames: string[], checked: boolean) {
+    for (const fieldName of possibleFieldNames) {
+      try {
+        const field = form.getCheckBox(fieldName);
+        if (checked) {
+          field.check();
+        } else {
+          field.uncheck();
+        }
+        console.log(`Successfully filled checkbox "${fieldName}" with value: ${checked}`);
+        return; // Success, exit early
+      } catch (error) {
+        // Field doesn't exist, try next name
+        continue;
       }
-    } catch (error) {
-      console.warn(`Could not fill checkbox "${fieldName}":`, error);
     }
+    
+    console.warn(`Could not find any matching checkbox for: ${possibleFieldNames.join(', ')}`);
   }
 
   static downloadPDF(pdfBytes: Uint8Array, filename: string = 'affidavit.pdf') {

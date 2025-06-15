@@ -26,6 +26,8 @@ export default function AffidavitGenerationDialog({
   clientData
 }: AffidavitGenerationDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Pre-populate with serve data
   const [additionalData, setAdditionalData] = useState<Partial<AffidavitData>>({
     courtName: "Superior Court of California",
     documentsToServe: "Summons and Complaint",
@@ -56,13 +58,20 @@ export default function AffidavitGenerationDialog({
   const handleGeneratePDF = async () => {
     setIsGenerating(true);
     try {
+      console.log('Generating PDF with serve data:', serveData);
+      console.log('Client data:', clientData);
+      console.log('Additional data:', additionalData);
+      
       const pdfBytes = await PDFService.generateAffidavitFromServe(
         serveData,
         clientData,
         additionalData
       );
       
-      const filename = `affidavit-${clientData.name.replace(/\s+/g, '-')}-${serveData.caseNumber}-${Date.now()}.pdf`;
+      const clientNameForFile = clientData.name ? clientData.name.replace(/\s+/g, '-') : 'unknown-client';
+      const caseNumberForFile = serveData.caseNumber ? serveData.caseNumber.replace(/\s+/g, '-') : 'unknown-case';
+      const filename = `affidavit-${clientNameForFile}-${caseNumberForFile}-${Date.now()}.pdf`;
+      
       PDFService.downloadPDF(pdfBytes, filename);
       
       toast({
@@ -93,11 +102,16 @@ export default function AffidavitGenerationDialog({
         
         <div className="space-y-4">
           <div className="p-4 bg-accent/50 rounded-md">
-            <h4 className="font-medium mb-2">Serve Information</h4>
-            <p className="text-sm text-muted-foreground">Client: {clientData.name}</p>
-            <p className="text-sm text-muted-foreground">Case: {serveData.caseName || serveData.caseNumber}</p>
-            <p className="text-sm text-muted-foreground">Status: {serveData.status}</p>
-            <p className="text-sm text-muted-foreground">Date: {new Date(serveData.timestamp).toLocaleDateString()}</p>
+            <h4 className="font-medium mb-2">Serve Information (Auto-filled)</h4>
+            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+              <p><strong>Client:</strong> {clientData.name}</p>
+              <p><strong>Case:</strong> {serveData.caseName || serveData.caseNumber}</p>
+              <p><strong>Case Number:</strong> {serveData.caseNumber}</p>
+              <p><strong>Status:</strong> {serveData.status}</p>
+              <p><strong>Date:</strong> {new Date(serveData.timestamp).toLocaleDateString()}</p>
+              <p><strong>Time:</strong> {new Date(serveData.timestamp).toLocaleTimeString()}</p>
+              <p><strong>Address:</strong> {serveData.address || clientData.address}</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

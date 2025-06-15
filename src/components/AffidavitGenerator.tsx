@@ -34,13 +34,13 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   // Extract data from serves
   const firstServe = serves[0];
   
-  // Use provided props first, then fall back to serve data
-  const displayCourtName = courtName || 'Not specified';
-  const displayPlaintiff = plaintiffPetitioner || 'Not specified';
-  const displayDefendant = defendantRespondent || 'Not specified';
-  const displayPersonBeingServed = firstServe?.caseName || caseName || 'Unknown';
-  const displayServiceAddress = firstServe?.serviceAddress || firstServe?.address || 'Not specified';
-  const displayCaseNumber = caseNumber || firstServe?.caseNumber || 'N/A';
+  // Use the actual data from the serve attempts, fallback to props, then to defaults
+  const displayCourtName = firstServe?.courtName || courtName || firstServe?.court || 'Court information not available';
+  const displayPlaintiff = firstServe?.plaintiffPetitioner || plaintiffPetitioner || firstServe?.plaintiff || 'Plaintiff information not available';
+  const displayDefendant = firstServe?.defendantRespondent || defendantRespondent || firstServe?.defendant || 'Defendant information not available';
+  const displayPersonBeingServed = firstServe?.caseName || caseName || firstServe?.personBeingServed || 'Person being served not specified';
+  const displayServiceAddress = firstServe?.serviceAddress || firstServe?.address || 'Service address not available';
+  const displayCaseNumber = firstServe?.caseNumber || caseNumber || 'Case number not available';
 
   console.log('AffidavitGenerator data:', {
     courtName: displayCourtName,

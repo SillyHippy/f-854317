@@ -129,6 +129,8 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
       };
 
       if (editingCase) {
+        // Log what ID we are sending!
+        console.log("Updating case with ID for updateCase:", editingCase.id, caseData);
         await appwrite.updateCase(editingCase.id, caseData);
         toast({
           title: "Case updated",
@@ -186,6 +188,8 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleDelete = async (caseItem: CaseData) => {
     if (window.confirm(`Are you sure you want to delete case ${caseItem.case_number}?`)) {
       try {
+        // Log what ID we are sending!
+        console.log("Deleting case with ID for deleteClientCase:", caseItem.id);
         await appwrite.deleteClientCase(caseItem.id);
         toast({
           title: "Case deleted",

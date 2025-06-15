@@ -394,7 +394,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         imageData: imageWithGPS,
         coordinates: `${location.latitude},${location.longitude}`,
         address: selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available",
-        serviceAddress: finalServiceAddress, // Ensure this is properly set
+        serviceAddress: finalServiceAddress, // This will be mapped to service_address in Appwrite
         notes: finalNotes,
         timestamp: new Date(),
         status: data.status,
@@ -408,7 +408,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         serveData
       });
 
-      // Save to the database
+      // Save to the database - the appwrite.createServeAttempt should map serviceAddress to service_address
       const savedServe = await appwrite.createServeAttempt(serveData);
       console.log("Serve attempt saved successfully:", savedServe);
 

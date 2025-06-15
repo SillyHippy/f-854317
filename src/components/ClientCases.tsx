@@ -124,6 +124,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
         defendant_respondent: data.defendantRespondent || null,
         home_address: data.homeAddress || null,
         work_address: data.workAddress || null,
+        notes: data.notes || null,
         status: data.status,
       };
 

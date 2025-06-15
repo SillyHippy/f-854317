@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+
+import React, { useState } from "react";
 import { 
   Card,
   CardContent,
@@ -18,69 +16,29 @@ import {
   FormLabel, 
   FormMessage 
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ClientData } from "./ClientForm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CameraComponent from "./Camera";
-import { embedGpsIntoImage } from "@/utils/gps";
-import { formatCoordinates } from "@/utils/gps";
-import { createServeEmailBody } from "@/utils/email";
+import { embedGpsIntoImage, formatCoordinates } from "@/utils/gps";
 import { useToast } from "@/components/ui/use-toast";
-import { MapPin, Mail, Camera, AlertCircle, CheckCircle, Loader2, ExternalLink, Search, User } from "lucide-react";
-import { getClientCases, getServeAttemptsCount } from "@/utils/appwriteStorage";
-import { appwrite } from "@/lib/appwrite";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Camera, AlertCircle, CheckCircle, Loader2, User } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { debugImageData } from "@/utils/imageUtils";
 import PhysicalDescriptionForm, { PhysicalDescriptionData } from "./PhysicalDescriptionForm";
 import { ServeAttemptData } from "@/types/ServeAttemptData";
+import { ClientData } from "./ClientForm";
+import { useServeAttempt } from "@/hooks/useServeAttempt";
+import ClientSelector from "./serve/ClientSelector";
+import CaseSelector from "./serve/CaseSelector";
+import AddressSelector from "./serve/AddressSelector";
+import SearchableAddressList from "./serve/SearchableAddressList";
 
 interface ServeAttemptProps {
   clients: ClientData[];
   onComplete: (data: ServeAttemptData) => void;
   previousAttempts?: number;
 }
-
-interface ClientCase {
-  caseNumber: string;
-  caseName?: string;
-  homeAddress?: string;
-  workAddress?: string;
-  clientId?: string;
-  clientName?: string;
-  personEntityBeingServed?: string;
-}
-
-const serveAttemptSchema = z.object({
-  clientId: z.string().min(1, { message: "Please select a client" }),
-  caseNumber: z.string().min(1, { message: "Please select a case" }),
-  notes: z.string().optional(),
-  status: z.enum(["completed", "failed"]),
-  serviceAddress: z.string().optional(),
-  addressType: z.enum(["home", "work", "custom"]).optional(),
-});
-
-type ServeFormValues = z.infer<typeof serveAttemptSchema>;
-
-const filterCases = (cases: ClientCase[], query: string) => {
-  if (!query.trim()) return cases;
-
-  const lowerQuery = query.toLowerCase();
-  return cases.filter(
-    (c) =>
-      c.caseNumber?.toLowerCase().includes(lowerQuery) || 
-      c.caseName?.toLowerCase().includes(lowerQuery) || 
-      c.homeAddress?.toLowerCase().includes(lowerQuery) || 
-      c.workAddress?.toLowerCase().includes(lowerQuery) || 
-      c.clientName?.toLowerCase().includes(lowerQuery) ||
-      c.personEntityBeingServed?.toLowerCase().includes(lowerQuery)
-  );
-};
 
 const ServeAttempt: React.FC<ServeAttemptProps> = ({ 
   clients, 
@@ -90,235 +48,32 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   const [step, setStep] = useState<"select" | "capture" | "confirm">("select");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [location, setLocation] = useState<GeolocationCoordinates | null>(null);
-  const [selectedClient, setSelectedClient] = useState<ClientData | null>(null);
-  const [clientCases, setClientCases] = useState<ClientCase[]>([]);
-  const [allCases, setAllCases] = useState<ClientCase[]>([]);
-  const [selectedCase, setSelectedCase] = useState<ClientCase | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [addressSearchTerm, setAddressSearchTerm] = useState("");
-  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
-  const [isLoadingCases, setIsLoadingCases] = useState(false);
-  const [caseAttemptCount, setCaseAttemptCount] = useState(0);
   const [physicalDescription, setPhysicalDescription] = useState<PhysicalDescriptionData | undefined>();
-  const [gpsAddress, setGpsAddress] = useState<string>("");
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
-  const form = useForm<ServeFormValues>({
-    resolver: zodResolver(serveAttemptSchema),
-    defaultValues: {
-      clientId: "",
-      caseNumber: "",
-      notes: "",
-      status: "completed",
-      serviceAddress: "",
-      addressType: "home",
-    },
-  });
-
-  // Reverse geocode GPS coordinates to get address
-  const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
-    try {
-      // For now, return a formatted address using coordinates
-      // In production, you would use a real geocoding service
-      return `GPS Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    } catch (error) {
-      console.error("Reverse geocoding failed:", error);
-      return `GPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-    }
-  };
-
-  useEffect(() => {
-    const fetchAllCases = async () => {
-      setIsLoadingCases(true);
-      try {
-        const activeCases: ClientCase[] = [];
-
-        for (const client of clients) {
-          const clientCases = await appwrite.getClientCases(client.id);
-          activeCases.push(
-            ...clientCases.filter((caseItem) => caseItem.status !== "Closed").map((caseItem) => ({
-              caseNumber: caseItem.case_number,
-              caseName: caseItem.case_name,
-              homeAddress: caseItem.home_address,
-              workAddress: caseItem.work_address,
-              clientId: client.id,
-              clientName: client.name,
-              personEntityBeingServed: caseItem.person_entity_being_served || caseItem.case_name,
-            }))
-          );
-        }
-
-        setAllCases(activeCases);
-      } catch (error) {
-        console.error("Error fetching all cases:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load cases",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingCases(false);
-      }
-    };
-
-    fetchAllCases();
-  }, [clients]);
-
-  useEffect(() => {
-    if (selectedClient?.id) {
-      const fetchClientCases = async () => {
-        setIsLoadingCases(true);
-        try {
-          const clientCases = await appwrite.getClientCases(selectedClient.id);
-          const activeCases = clientCases
-            .filter((caseItem) => caseItem.status !== "Closed")
-            .map((caseItem) => ({
-              caseNumber: caseItem.case_number,
-              caseName: caseItem.case_name,
-              homeAddress: caseItem.home_address,
-              workAddress: caseItem.work_address,
-              clientId: selectedClient.id,
-              clientName: selectedClient.name,
-              personEntityBeingServed: caseItem.person_entity_being_served || caseItem.case_name,
-            }));
-
-          setClientCases(activeCases);
-        } catch (error) {
-          console.error("Error fetching client cases:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load client cases",
-            variant: "destructive",
-          });
-        } finally {
-          setIsLoadingCases(false);
-        }
-      };
-
-      fetchClientCases();
-    } else {
-      setClientCases([]);
-    }
-  }, [selectedClient]);
-
-  useEffect(() => {
-    const updateAttemptCount = async () => {
-      if (selectedClient?.id && selectedCase?.caseNumber) {
-        const count = await getServeAttemptsCount(
-          selectedClient.id, 
-          selectedCase.caseNumber
-        );
-        setCaseAttemptCount(count);
-      }
-    };
-    
-    updateAttemptCount();
-  }, [selectedClient, selectedCase]);
-
-  const filteredCases = useMemo(() => {
-    const casesToFilter = selectedClient ? clientCases : allCases;
-    if (!addressSearchTerm.trim()) return casesToFilter;
-
-    const lowerQuery = addressSearchTerm.toLowerCase();
-    return casesToFilter.filter(
-      (c) =>
-        c.caseNumber?.toLowerCase().includes(lowerQuery) ||
-        c.caseName?.toLowerCase().includes(lowerQuery) ||
-        c.homeAddress?.toLowerCase().includes(lowerQuery) ||
-        c.workAddress?.toLowerCase().includes(lowerQuery) ||
-        c.clientName?.toLowerCase().includes(lowerQuery) ||
-        c.personEntityBeingServed?.toLowerCase().includes(lowerQuery)
-    );
-  }, [addressSearchTerm, clientCases, allCases, selectedClient]);
-
-  const handleClientChange = (clientId: string) => {
-    const client = clients.find((c) => c.id === clientId);
-    setSelectedClient(client || null);
-    form.setValue("clientId", clientId);
-    form.setValue("caseNumber", "");
-    form.setValue("serviceAddress", "");
-    form.setValue("addressType", "home");
-    setSelectedCase(null);
-    setAddressSearchTerm("");
-  };
-
-  const handleCaseChange = async (caseNumber: string) => {
-    const caseItem = clientCases.find(c => c.caseNumber === caseNumber) || null;
-    setSelectedCase(caseItem);
-    form.setValue("caseNumber", caseNumber);
-    
-    // Reset address selection
-    form.setValue("addressType", "home");
-    if (caseItem?.homeAddress) {
-      form.setValue("serviceAddress", caseItem.homeAddress);
-    } else if (caseItem?.workAddress) {
-      form.setValue("addressType", "work");
-      form.setValue("serviceAddress", caseItem.workAddress);
-    }
-    
-    if (selectedClient?.id) {
-      const count = await getServeAttemptsCount(selectedClient.id, caseNumber);
-      setCaseAttemptCount(count);
-    }
-  };
-
-  const handleAddressSelect = async (caseItem: ClientCase) => {
-    if (caseItem.clientId && (!selectedClient || selectedClient.id !== caseItem.clientId)) {
-      const client = clients.find(c => c.id === caseItem.clientId);
-      if (client) {
-        setSelectedClient(client);
-        form.setValue("clientId", client.id);
-      }
-    }
-    
-    setSelectedCase(caseItem);
-    form.setValue("caseNumber", caseItem.caseNumber);
-    
-    // Set default address
-    form.setValue("addressType", "home");
-    if (caseItem.homeAddress) {
-      form.setValue("serviceAddress", caseItem.homeAddress);
-    } else if (caseItem.workAddress) {
-      form.setValue("addressType", "work");
-      form.setValue("serviceAddress", caseItem.workAddress);
-    }
-    
-    if (caseItem.clientId) {
-      form.setValue("clientId", caseItem.clientId);
-      
-      const count = await getServeAttemptsCount(
-        caseItem.clientId, 
-        caseItem.caseNumber
-      );
-      setCaseAttemptCount(count);
-    }
-    
-    setAddressSearchOpen(false);
-  };
-
-  const handleAddressTypeChange = (value: string) => {
-    form.setValue("addressType", value as "home" | "work" | "custom");
-    
-    if (value === "home" && selectedCase?.homeAddress) {
-      form.setValue("serviceAddress", selectedCase.homeAddress);
-    } else if (value === "work" && selectedCase?.workAddress) {
-      form.setValue("serviceAddress", selectedCase.workAddress);
-    } else if (value === "custom") {
-      form.setValue("serviceAddress", "");
-    }
-  };
+  const {
+    form,
+    selectedClient,
+    selectedCase,
+    clientCases,
+    filteredCases,
+    caseAttemptCount,
+    addressSearchTerm,
+    addressSearchOpen,
+    isLoadingCases,
+    setAddressSearchTerm,
+    setAddressSearchOpen,
+    handleClientChange,
+    handleCaseChange,
+    handleAddressSelect,
+  } = useServeAttempt(clients);
 
   const handleCameraCapture = async (imageData: string, coords: GeolocationCoordinates) => {
     setCapturedImage(imageData);
     setLocation(coords);
     setStep("confirm");
-  };
-
-  const handleAddressClick = (address: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, '_blank', 'noopener,noreferrer');
-    console.log("Opening address location in Google Maps:", address);
   };
 
   const handlePhysicalDescriptionSave = (data: PhysicalDescriptionData) => {
@@ -338,7 +93,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     return parts.join(', ');
   };
 
-  const handleSubmit = async (data: ServeFormValues) => {
+  const handleSubmit = async (data: any) => {
     if (!capturedImage || !location || !selectedClient || !selectedCase) {
       console.error("Missing required information. Please try again.");
       toast({
@@ -362,16 +117,15 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         }
       }
 
-      // Map to database field names (snake_case)
       const serveData: ServeAttemptData = {
         client_id: selectedClient.id,
-        clientId: selectedClient.id, // Keep alias for compatibility
+        clientId: selectedClient.id,
         clientName: selectedClient.name,
         clientEmail: selectedClient.email || "",
         case_number: selectedCase.caseNumber,
-        caseNumber: selectedCase.caseNumber, // Keep alias for compatibility
+        caseNumber: selectedCase.caseNumber,
         case_name: selectedCase.caseName || "Unknown Case",
-        caseName: selectedCase.caseName || "Unknown Case", // Keep alias for compatibility
+        caseName: selectedCase.caseName || "Unknown Case",
         personEntityBeingServed: selectedCase.personEntityBeingServed || selectedCase.caseName || "",
         imageData: imageWithGPS,
         coordinates: `${location.latitude},${location.longitude}`,
@@ -384,25 +138,12 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         physicalDescription,
       };
 
-      console.log("Submitting serve attempt data to Appwrite:", serveData);
-
-      // Save to the database
-      const savedServe = await appwrite.createServeAttempt(serveData);
-      console.log("Serve attempt saved successfully:", savedServe);
-
-      toast({
-        title: "Serve recorded",
-        description: "Service attempt has been saved successfully.",
-        variant: "success",
-      });
+      await onComplete(serveData);
 
       form.reset();
       setCapturedImage(null);
       setLocation(null);
-      setSelectedClient(null);
-      setSelectedCase(null);
       setPhysicalDescription(undefined);
-      setGpsAddress("");
       setStep("select");
     } catch (error) {
       console.error("Error saving serve attempt:", error);
@@ -416,13 +157,8 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     }
   };
 
-  const getMapLink = (address: string) => {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-  };
-
   const isCaseSelected = !!form.watch("caseNumber");
   const isSuccessfulServe = form.watch("status") === "completed";
-  const addressType = form.watch("addressType");
 
   return (
     <div className="animate-slide-in w-full max-w-md mx-auto">
@@ -438,66 +174,16 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
           <CardContent>
             <Form {...form}>
               <form className="space-y-4">
-                <div className="space-y-2 mb-4">
-                  <p className="text-sm font-medium">Search by address across all cases</p>
-                  <Popover open={addressSearchOpen} onOpenChange={setAddressSearchOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={addressSearchOpen}
-                        className="w-full justify-between text-left relative"
-                      >
-                        {addressSearchTerm || "Search addresses, cases, or clients..."}
-                        <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className={`${isMobile ? 'w-screen max-w-[calc(100vw-2rem)]' : 'w-[300px]'} p-0`}>
-                      <Command>
-                        <CommandInput
-                          placeholder="Search address, case, or client..."
-                          value={addressSearchTerm}
-                          onValueChange={setAddressSearchTerm}
-                        />
-                        <CommandEmpty>
-                          {isLoadingCases ? "Loading cases..." : "No cases found."}
-                        </CommandEmpty>
-                        <CommandList className="max-h-[300px]">
-                          <CommandGroup heading="Cases">
-                            {filteredCases.map((caseItem) => (
-                              <CommandItem
-                                key={`${caseItem.clientId}-${caseItem.caseNumber}`}
-                                value={`${caseItem.caseNumber}-${caseItem.homeAddress}-${caseItem.workAddress}`}
-                                onSelect={() => handleAddressSelect(caseItem)}
-                              >
-                                <div className="flex flex-col w-full">
-                                  <span className="font-medium">
-                                    {caseItem.personEntityBeingServed || caseItem.caseName || caseItem.caseNumber}
-                                  </span>
-                                  {caseItem.clientName && (
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      Client: {caseItem.clientName}
-                                    </span>
-                                  )}
-                                  {caseItem.homeAddress && (
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      Home: {caseItem.homeAddress}
-                                    </span>
-                                  )}
-                                  {caseItem.workAddress && (
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      Work: {caseItem.workAddress}
-                                    </span>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <SearchableAddressList
+                  filteredCases={filteredCases}
+                  addressSearchTerm={addressSearchTerm}
+                  addressSearchOpen={addressSearchOpen}
+                  isLoadingCases={isLoadingCases}
+                  isMobile={isMobile}
+                  onSearchTermChange={setAddressSearchTerm}
+                  onSearchOpenChange={setAddressSearchOpen}
+                  onAddressSelect={handleAddressSelect}
+                />
 
                 <div className="relative py-3">
                   <div className="absolute inset-0 flex items-center">
@@ -510,136 +196,20 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                   </div>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="clientId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Client</FormLabel>
-                      <FormControl>
-                        <Select 
-                          onValueChange={(value) => {
-                            field.onChange(value);
-                            handleClientChange(value);
-                          }}
-                          value={field.value}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a client" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {clients.map(client => (
-                              <SelectItem key={client.id} value={client.id || ""}>
-                                {client.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <ClientSelector
+                  clients={clients}
+                  selectedClient={selectedClient}
+                  onClientChange={handleClientChange}
+                  form={form}
                 />
 
                 {selectedClient && (
-                  <>
-                    <div className="space-y-2 p-3 rounded-md bg-accent/50">
-                      <p className="text-sm font-medium">{selectedClient.name}</p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5" /> 
-                        <a 
-                          href={getMapLink(selectedClient.address)}
-                          className="hover:underline text-primary flex items-center gap-1"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => handleAddressClick(selectedClient.address, e)}
-                        >
-                          {selectedClient.address}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </p>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Mail className="w-3.5 h-3.5" /> 
-                        {selectedClient.email}
-                      </p>
-                    </div>
-                    {clientCases.length > 0 ? (
-                      <>
-                        <FormField
-                          control={form.control}
-                          name="caseNumber"
-                          render={({ field }) => (
-                            <FormItem className="space-y-1">
-                              <FormLabel>Case</FormLabel>
-                              <FormControl>
-                                <Select 
-                                  onValueChange={(value) => {
-                                    field.onChange(value);
-                                    handleCaseChange(value);
-                                  }}
-                                  value={field.value}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a case" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {clientCases.map(c => (
-                                      <SelectItem key={c.caseNumber} value={c.caseNumber}>
-                                        {c.caseNumber} - {c.personEntityBeingServed || c.caseName}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </>
-                    ) : (
-                      <div className="text-sm text-center p-3 bg-accent/30 rounded-md">
-                        <p className="text-muted-foreground">No cases found for this client.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Please select a different client or add cases first.</p>
-                      </div>
-                    )}
-
-                    {selectedCase && (selectedCase.homeAddress || selectedCase.workAddress) && (
-                      <div className="space-y-2 p-3 rounded-md bg-accent/20">
-                        {selectedCase.homeAddress && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium">Home Address:</p>
-                            <a 
-                              href={getMapLink(selectedCase.homeAddress)}
-                              className="text-xs text-primary hover:underline flex items-center gap-1"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => handleAddressClick(selectedCase.homeAddress!, e)}
-                            >
-                              <MapPin className="h-3 w-3" />
-                              {selectedCase.homeAddress}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        )}
-                        {selectedCase.workAddress && (
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium">Work Address:</p>
-                            <a 
-                              href={getMapLink(selectedCase.workAddress)}
-                              className="text-xs text-primary hover:underline flex items-center gap-1"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => handleAddressClick(selectedCase.workAddress!, e)}
-                            >
-                              <MapPin className="h-3 w-3" />
-                              {selectedCase.workAddress}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
+                  <CaseSelector
+                    clientCases={clientCases}
+                    selectedCase={selectedCase}
+                    onCaseChange={handleCaseChange}
+                    form={form}
+                  />
                 )}
               </form>
             </Form>
@@ -722,74 +292,9 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                   </div>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="serviceAddress"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Service Address (Optional)</FormLabel>
-                      <FormControl>
-                        <div className="space-y-3">
-                          {(selectedCase?.homeAddress || selectedCase?.workAddress) && (
-                            <FormField
-                              control={form.control}
-                              name="addressType"
-                              render={({ field: addressTypeField }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <RadioGroup
-                                      onValueChange={handleAddressTypeChange}
-                                      defaultValue={addressTypeField.value}
-                                      className="space-y-2"
-                                    >
-                                      {selectedCase?.homeAddress && (
-                                        <div className="flex items-center space-x-2">
-                                          <RadioGroupItem value="home" id="home" />
-                                          <Label htmlFor="home" className="text-xs cursor-pointer flex-1">
-                                            Home Address: {selectedCase.homeAddress}
-                                          </Label>
-                                        </div>
-                                      )}
-                                      {selectedCase?.workAddress && (
-                                        <div className="flex items-center space-x-2">
-                                          <RadioGroupItem value="work" id="work" />
-                                          <Label htmlFor="work" className="text-xs cursor-pointer flex-1">
-                                            Work Address: {selectedCase.workAddress}
-                                          </Label>
-                                        </div>
-                                      )}
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="custom" id="custom" />
-                                        <Label htmlFor="custom" className="text-xs cursor-pointer">
-                                          Custom Address
-                                        </Label>
-                                      </div>
-                                    </RadioGroup>
-                                  </FormControl>
-                                </FormItem>
-                              )}
-                            />
-                          )}
-                          
-                          {addressType === "custom" && (
-                            <Input 
-                              placeholder="Enter the actual service address"
-                              {...field}
-                            />
-                          )}
-                          
-                          {addressType !== "custom" && (
-                            <Input 
-                              {...field}
-                              readOnly
-                              className="bg-muted"
-                            />
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <AddressSelector
+                  selectedCase={selectedCase}
+                  form={form}
                 />
 
                 <FormField

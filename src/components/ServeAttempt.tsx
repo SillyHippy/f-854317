@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ClientData } from "./ClientForm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CameraComponent from "./Camera";
@@ -99,7 +99,8 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   const [isLoadingCases, setIsLoadingCases] = useState(false);
   const [caseAttemptCount, setCaseAttemptCount] = useState(0);
   const [physicalDescription, setPhysicalDescription] = useState<PhysicalDescriptionData | undefined>();
-  const [selectedAddressType, setSelectedAddressType] = useState<string>("");
+  const [useHomeAddress, setUseHomeAddress] = useState(false);
+  const [useWorkAddress, setUseWorkAddress] = useState(false);
   const [gpsAddress, setGpsAddress] = useState<string>("");
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -239,14 +240,14 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     form.setValue("serviceAddress", "");
     setSelectedCase(null);
     setAddressSearchTerm("");
-    setSelectedAddressType("");
+    setUseHomeAddress(false);
+    setUseWorkAddress(false);
   };
 
   const handleCaseChange = async (caseNumber: string) => {
     const caseItem = clientCases.find(c => c.caseNumber === caseNumber) || null;
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseNumber);
-    setSelectedAddressType("");
     
     if (selectedClient?.id) {
       const count = await getServeAttemptsCount(selectedClient.id, caseNumber);
@@ -265,7 +266,6 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     
     setSelectedCase(caseItem);
     form.setValue("caseNumber", caseItem.caseNumber);
-    setSelectedAddressType("");
     
     if (caseItem.clientId) {
       form.setValue("clientId", caseItem.clientId);
@@ -280,13 +280,26 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     setAddressSearchOpen(false);
   };
 
-  const handleAddressTypeChange = (value: string) => {
-    setSelectedAddressType(value);
-    if (value === "home" && selectedCase?.homeAddress) {
-      form.setValue("serviceAddress", selectedCase.homeAddress);
-    } else if (value === "work" && selectedCase?.workAddress) {
-      form.setValue("serviceAddress", selectedCase.workAddress);
-    } else if (value === "custom") {
+  const handleHomeAddressChange = (checked: boolean) => {
+    setUseHomeAddress(checked);
+    if (checked) {
+      setUseWorkAddress(false);
+      if (selectedCase?.homeAddress) {
+        form.setValue("serviceAddress", selectedCase.homeAddress);
+      }
+    } else if (!useWorkAddress) {
+      form.setValue("serviceAddress", "");
+    }
+  };
+
+  const handleWorkAddressChange = (checked: boolean) => {
+    setUseWorkAddress(checked);
+    if (checked) {
+      setUseHomeAddress(false);
+      if (selectedCase?.workAddress) {
+        form.setValue("serviceAddress", selectedCase.workAddress);
+      }
+    } else if (!useHomeAddress) {
       form.setValue("serviceAddress", "");
     }
   };
@@ -384,7 +397,8 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       setSelectedClient(null);
       setSelectedCase(null);
       setPhysicalDescription(undefined);
-      setSelectedAddressType("");
+      setUseHomeAddress(false);
+      setUseWorkAddress(false);
       setGpsAddress("");
       setStep("select");
     } catch (error) {
@@ -711,41 +725,37 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                     <FormItem>
                       <FormLabel>Service Address (Optional)</FormLabel>
                       <FormControl>
-                        <div className="space-y-3">
-                          {(selectedCase?.homeAddress || selectedCase?.workAddress) && (
-                            <RadioGroup 
-                              value={selectedAddressType} 
-                              onValueChange={handleAddressTypeChange}
-                            >
-                              {selectedCase.homeAddress && (
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="home" id="home" />
-                                  <Label htmlFor="home" className="text-sm cursor-pointer">
-                                    Use Home Address: {selectedCase.homeAddress}
-                                  </Label>
-                                </div>
-                              )}
-                              {selectedCase.workAddress && (
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="work" id="work" />
-                                  <Label htmlFor="work" className="text-sm cursor-pointer">
-                                    Use Work Address: {selectedCase.workAddress}
-                                  </Label>
-                                </div>
-                              )}
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="custom" id="custom" />
-                                <Label htmlFor="custom" className="text-sm cursor-pointer">
-                                  Enter custom address
-                                </Label>
-                              </div>
-                            </RadioGroup>
-                          )}
+                        <div className="space-y-2">
                           <Input 
                             placeholder="Enter the actual service address (optional)"
                             {...field}
-                            disabled={selectedAddressType !== "custom" && selectedAddressType !== ""}
                           />
+                          <div className="flex flex-col gap-2">
+                            {selectedCase?.homeAddress && (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="homeAddress"
+                                  checked={useHomeAddress}
+                                  onCheckedChange={handleHomeAddressChange}
+                                />
+                                <Label htmlFor="homeAddress" className="text-xs cursor-pointer">
+                                  Use Home Address: {selectedCase.homeAddress}
+                                </Label>
+                              </div>
+                            )}
+                            {selectedCase?.workAddress && (
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id="workAddress"
+                                  checked={useWorkAddress}
+                                  onCheckedChange={handleWorkAddressChange}
+                                />
+                                <Label htmlFor="workAddress" className="text-xs cursor-pointer">
+                                  Use Work Address: {selectedCase.workAddress}
+                                </Label>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </FormControl>
                       <FormMessage />

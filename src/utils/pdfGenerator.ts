@@ -9,6 +9,9 @@ export interface AffidavitData {
   caseName?: string;
   personEntityBeingServed?: string;
   serveAttempts: ServeAttemptData[];
+  courtName?: string;
+  plaintiffPetitioner?: string;
+  defendantRespondent?: string;
 }
 
 export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> => {
@@ -148,8 +151,44 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             'CASE NUMBER'
           ], data.caseNumber);
         }
+
+        // Fill Name of Court
+        if (data.courtName) {
+          const courtFilled = tryFillField([
+            'Name of Court',
+            'NAME OF COURT',
+            'court_name',
+            'CourtName',
+            'Court Name'
+          ], data.courtName);
+          console.log(`Court name filled: ${courtFilled} with value: ${data.courtName}`);
+        }
+
+        // Fill Plaintiff/Petitioner
+        if (data.plaintiffPetitioner) {
+          const plaintiffFilled = tryFillField([
+            'Plaintiff/Petitioner',
+            'PLAINTIFF/PETITIONER',
+            'plaintiff_petitioner',
+            'PlaintiffPetitioner',
+            'Plaintiff Petitioner'
+          ], data.plaintiffPetitioner);
+          console.log(`Plaintiff filled: ${plaintiffFilled} with value: ${data.plaintiffPetitioner}`);
+        }
+
+        // Fill Defendant/Respondent
+        if (data.defendantRespondent) {
+          const defendantFilled = tryFillField([
+            'Defendant/Respondent',
+            'DEFENDANT/RESPONDENT',
+            'defendant_respondent',
+            'DefendantRespondent',
+            'Defendant Respondent'
+          ], data.defendantRespondent);
+          console.log(`Defendant filled: ${defendantFilled} with value: ${data.defendantRespondent}`);
+        }
         
-        // Fill "NAME OF PERSON / ENTITY BEING SERVED" field - NEVER put this in PLAINTIFF/PETITIONER
+        // Fill "NAME OF PERSON / ENTITY BEING SERVED" field
         if (data.personEntityBeingServed) {
           const filled = tryFillField([
             'Name of Person/Entity Being Served',
@@ -170,6 +209,8 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         const firstServe = data.serveAttempts[0];
         const serviceAddress = firstServe?.serviceAddress;
         
+        console.log('Service address from serve attempt:', serviceAddress);
+        
         // Determine if service was at residence or business based on addresses
         let isResidenceService = false;
         let isBusinessService = false;
@@ -185,12 +226,16 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
                    serviceAddress.toLowerCase().includes('office') ||
                    serviceAddress.toLowerCase().includes('business')) {
             isBusinessService = true;
+          } else {
+            // Default to residence if we have a service address but can't determine type
+            isResidenceService = true;
           }
         }
         
         // Check appropriate service location checkboxes
         if (isResidenceService) {
           const residenceChecked = tryCheckField([
+            'Residence Checkbox',
             'Residence',
             'residence',
             'RESIDENCE',
@@ -202,6 +247,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         
         if (isBusinessService) {
           const businessChecked = tryCheckField([
+            'business checkbox',
             'Business',
             'business', 
             'BUSINESS',
@@ -214,12 +260,24 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         }
         
         if (serviceAddress) {
-          // Fill the full address in residence address field
-          tryFillField([
+          // Fill the residence address field first
+          const residenceAddressFilled = tryFillField([
             'Residence address', 
             'residence_address', 
-            'ADDRESS'
+            'ADDRESS',
+            'Residence Address'
           ], serviceAddress);
+          console.log(`Residence address filled: ${residenceAddressFilled} with: ${serviceAddress}`);
+
+          // Also try business address if it seems like a business location
+          if (isBusinessService) {
+            const businessAddressFilled = tryFillField([
+              'Business address',
+              'business_address',
+              'Business Address'
+            ], serviceAddress);
+            console.log(`Business address filled: ${businessAddressFilled} with: ${serviceAddress}`);
+          }
           
           // Try to split address for city/state field
           const addressParts = serviceAddress.split(',');
@@ -230,12 +288,15 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             const cityPart = addressParts[addressParts.length - 2].trim();
             const cityState = `${cityPart}, ${lastPart}`;
             
-            tryFillField([
+            const cityStateFilled = tryFillField([
               'Residence City and state', 
               'residence_city_state', 
               'CITY / STATE',
-              'city_state'
+              'city_state',
+              'Business city and state',
+              'business_city_state'
             ], cityState);
+            console.log(`City/State filled: ${cityStateFilled} with: ${cityState}`);
           }
         }
         
@@ -259,9 +320,9 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               
               // Try multiple variations for date fields
               const dateFilled = tryFillField([
-                `(${attemptNum}) DATE`,
-                `(${attemptNum})_DATE`,
-                `Service attempt ${attemptNum} Date`, 
+                `Service attempt ${attemptNum} Date`,
+                `Service attempt${attemptNum} date`,
+                `Service attempt ${attemptNum} date`,
                 `attempt_${attemptNum}_date`,
                 `Service Attempts: Service was attempted on: (${attemptNum})`,
                 `${attemptNum} DATE`,
@@ -270,9 +331,8 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               
               // Try multiple variations for time fields
               const timeFilled = tryFillField([
-                `(${attemptNum}) TIME`,
-                `(${attemptNum})_TIME`,
-                `Service attempt ${attemptNum} time`, 
+                `Service attempt ${attemptNum} time`,
+                `Service attempt${attemptNum} time`, 
                 `attempt_${attemptNum}_time`,
                 `${attemptNum} TIME`,
                 `${attemptNum}_TIME`
@@ -290,7 +350,8 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             const date = new Date(mostRecentAttempt.timestamp);
             
             // Fill service DATE
-            tryFillField([
+            const serviceDateFilled = tryFillField([
+              'Service Date',
               'DATE', 
               'service_date', 
               'On',
@@ -298,9 +359,11 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               'Date',
               'Service Date'
             ], date.toLocaleDateString());
+            console.log(`Service Date filled: ${serviceDateFilled} with: ${date.toLocaleDateString()}`);
             
             // Fill service TIME  
-            tryFillField([
+            const serviceTimeFilled = tryFillField([
+              'Service Time',
               'TIME', 
               'service_time', 
               'AT',
@@ -308,6 +371,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
               'Time',
               'Service Time'
             ], date.toLocaleTimeString());
+            console.log(`Service Time filled: ${serviceTimeFilled} with: ${date.toLocaleTimeString()}`);
           }
 
           // Fill description field with notes from attempts, including physical description

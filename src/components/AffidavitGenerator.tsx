@@ -13,13 +13,19 @@ interface AffidavitGeneratorProps {
   serves: ServeAttemptData[];
   caseNumber?: string;
   caseName?: string;
+  courtName?: string;
+  plaintiffPetitioner?: string;
+  defendantRespondent?: string;
 }
 
 const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   client,
   serves,
   caseNumber,
-  caseName
+  caseName,
+  courtName,
+  plaintiffPetitioner,
+  defendantRespondent
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -38,8 +44,13 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         caseNumber: caseNumber || '',
         caseName: caseName || undefined,
         personEntityBeingServed: personEntityBeingServed,
+        courtName: courtName || undefined,
+        plaintiffPetitioner: plaintiffPetitioner || undefined,
+        defendantRespondent: defendantRespondent || undefined,
         serveAttempts: serves
       };
+
+      console.log('Generating affidavit with data:', affidavitData);
 
       await generateAffidavitPDF(affidavitData);
       
@@ -76,6 +87,9 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         
         <div className="space-y-4">
           <div className="text-sm space-y-2 border rounded-md p-4 bg-accent/20">
+            <p><strong>Court:</strong> {courtName || 'Not specified'}</p>
+            <p><strong>Plaintiff/Petitioner:</strong> {plaintiffPetitioner || 'Not specified'}</p>
+            <p><strong>Defendant/Respondent:</strong> {defendantRespondent || 'Not specified'}</p>
             <p><strong>Person/Entity Being Served:</strong> {serves[0]?.personEntityBeingServed || caseName || 'Unknown'}</p>
             <p><strong>Service Address:</strong> {serves[0]?.serviceAddress || 'Not specified'}</p>
             <p><strong>Case Number:</strong> {caseNumber || 'N/A'}</p>

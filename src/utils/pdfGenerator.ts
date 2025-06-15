@@ -166,9 +166,53 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           }
         }
         
-        // Use the actual service address from the serve attempts, not the client address
+        // Get the first serve attempt to determine addresses and service location
         const firstServe = data.serveAttempts[0];
         const serviceAddress = firstServe?.serviceAddress;
+        
+        // Determine if service was at residence or business based on addresses
+        let isResidenceService = false;
+        let isBusinessService = false;
+        
+        if (serviceAddress && firstServe) {
+          // Check if service address matches home address (residence)
+          if (firstServe.address && serviceAddress.toLowerCase().includes(firstServe.address.toLowerCase())) {
+            isResidenceService = true;
+          }
+          // You could add more logic here to detect business addresses
+          // For now, if it's not residence, assume it could be business
+          else if (serviceAddress.toLowerCase().includes('work') || 
+                   serviceAddress.toLowerCase().includes('office') ||
+                   serviceAddress.toLowerCase().includes('business')) {
+            isBusinessService = true;
+          }
+        }
+        
+        // Check appropriate service location checkboxes
+        if (isResidenceService) {
+          const residenceChecked = tryCheckField([
+            'Residence',
+            'residence',
+            'RESIDENCE',
+            'At residence',
+            'at_residence'
+          ]);
+          console.log(`Residence checkbox checked: ${residenceChecked}`);
+        }
+        
+        if (isBusinessService) {
+          const businessChecked = tryCheckField([
+            'Business',
+            'business', 
+            'BUSINESS',
+            'At business',
+            'at_business',
+            'Place of business',
+            'place_of_business'
+          ]);
+          console.log(`Business checkbox checked: ${businessChecked}`);
+        }
+        
         if (serviceAddress) {
           // Fill the full address in residence address field
           tryFillField([

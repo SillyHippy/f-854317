@@ -124,12 +124,10 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
         defendant_respondent: data.defendantRespondent || null,
         home_address: data.homeAddress || null,
         work_address: data.workAddress || null,
-        notes: data.notes || null,
         status: data.status,
       };
 
       if (editingCase) {
-        // Log what ID we are sending!
         console.log("Updating case with ID for updateCase:", editingCase.id, caseData);
         await appwrite.updateCase(editingCase.id, caseData);
         toast({
@@ -172,7 +170,6 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
     form.setValue('workAddress', caseItem.work_address || '');
     form.setValue('notes', caseItem.notes || '');
     
-    // Handle different status values from database
     let formStatus: 'Open' | 'Closed' | 'Pending' = 'Pending';
     if (caseItem.status === 'Open' || caseItem.status === 'Active') {
       formStatus = 'Open';
@@ -188,7 +185,6 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleDelete = async (caseItem: CaseData) => {
     if (window.confirm(`Are you sure you want to delete case ${caseItem.case_number}?`)) {
       try {
-        // Log what ID we are sending!
         console.log("Deleting case with ID for deleteClientCase:", caseItem.id);
         await appwrite.deleteClientCase(caseItem.id);
         toast({

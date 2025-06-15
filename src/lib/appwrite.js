@@ -735,14 +735,13 @@ export const appwrite = {
         {
           client_id: caseData.client_id,
           case_number: caseData.case_number,
-          case_name: caseData.case_name, // This field stores person_entity_being_served
+          case_name: caseData.case_name,
           court_name: caseData.court_name,
           plaintiff_petitioner: caseData.plaintiff_petitioner,
           defendant_respondent: caseData.defendant_respondent,
           home_address: caseData.home_address,
           work_address: caseData.work_address,
-          notes: caseData.notes,
-          status: 'Open', // Always default to 'Open' for new cases
+          status: caseData.status || 'Open',
           created_at: now,
           updated_at: now
         }
@@ -764,13 +763,12 @@ export const appwrite = {
         caseId,
         {
           case_number: caseData.case_number,
-          case_name: caseData.case_name, // This field stores person_entity_being_served
+          case_name: caseData.case_name,
           court_name: caseData.court_name,
           plaintiff_petitioner: caseData.plaintiff_petitioner,
           defendant_respondent: caseData.defendant_respondent,
           home_address: caseData.home_address,
           work_address: caseData.work_address,
-          notes: caseData.notes,
           status: caseData.status,
           updated_at: new Date().toISOString()
         }

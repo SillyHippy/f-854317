@@ -49,7 +49,7 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
     setIsLoadingCase(true);
     try {
       console.log('Fetching case data for case number:', actualCaseNumber);
-      const cases = await appwrite.getClientCases(client.id || client.$id);
+      const cases = await appwrite.getClientCases(client.id || '');
       const matchingCase = cases.find(c => c.case_number === actualCaseNumber);
       
       if (matchingCase) {

@@ -1,6 +1,5 @@
 
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { ServeAttemptData } from '@/components/ServeAttempt';
 import { ClientData } from '@/components/ClientForm';
 
@@ -18,6 +17,11 @@ export interface AffidavitData {
 
 export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> => {
   try {
+    // Load the existing PDF template
+    const templateUrl = '/Templates/NAPPS-Affidavit form filled.pdf';
+    
+    // For now, we'll create a basic PDF with the serve attempt data
+    // TODO: Implement proper PDF form filling with the template
     const pdf = new jsPDF();
     
     // Header
@@ -67,44 +71,16 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
       }
     });
     
-    // Process server information
-    yPosition += 20;
+    // Signature area
+    yPosition += 40;
     if (yPosition > 230) {
       pdf.addPage();
       yPosition = 20;
     }
     
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('PROCESS SERVER INFORMATION:', 20, yPosition);
-    yPosition += 10;
-    
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Name: ${data.processServerName}`, 20, yPosition);
-    pdf.text(`Address: ${data.processServerAddress}`, 20, yPosition + 10);
-    
-    // Signature area
-    yPosition += 40;
     pdf.text('_________________________________', 20, yPosition);
     pdf.text('Process Server Signature', 20, yPosition + 8);
     pdf.text(`Date: ${new Date().toLocaleDateString()}`, 20, yPosition + 20);
-    
-    // Notary section
-    if (data.notaryName) {
-      yPosition += 40;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('NOTARY ACKNOWLEDGMENT:', 20, yPosition);
-      yPosition += 10;
-      
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Notary: ${data.notaryName}`, 20, yPosition);
-      if (data.notaryCommissionExpires) {
-        pdf.text(`Commission Expires: ${data.notaryCommissionExpires}`, 20, yPosition + 10);
-      }
-      
-      yPosition += 30;
-      pdf.text('_________________________________', 20, yPosition);
-      pdf.text('Notary Signature', 20, yPosition + 8);
-    }
     
     // Save the PDF
     const fileName = `Affidavit_${data.caseNumber}_${new Date().toISOString().split('T')[0]}.pdf`;

@@ -1,3 +1,4 @@
+
 import React from "react";
 import { 
   Card, 
@@ -8,11 +9,9 @@ import {
   CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2, FileText, Download } from "lucide-react";
+import { MapPin, Calendar, ClipboardList, Clock, Edit, Trash2, FileText } from "lucide-react";
 import { ServeAttemptData } from "@/components/ServeAttempt";
-import { generateServeReportPDF } from "@/utils/pdfGenerator";
 import AffidavitGenerator from "@/components/AffidavitGenerator";
-import { useToast } from "@/hooks/use-toast";
 
 interface ServeHistoryProps {
   serves: ServeAttemptData[];
@@ -26,7 +25,7 @@ const formatDate = (date: string | Date | undefined): string => {
   try {
     const parsedDate = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(parsedDate.getTime())) throw new Error("Invalid date");
-    return parsedDate.toLocaleString(); // Adjust format as needed
+    return parsedDate.toLocaleString();
   } catch (error) {
     console.error("Date formatting error:", error, date);
     return "Unknown date";
@@ -38,7 +37,6 @@ const formatCoordinates = (coords: string | null | undefined | { latitude: numbe
     return "No coordinates available";
   }
   
-  // Handle both string format "lat,lng" and object format
   if (typeof coords === "string") {
     const [latitude, longitude] = coords.split(",");
     if (!latitude || !longitude || isNaN(parseFloat(latitude)) || isNaN(parseFloat(longitude))) {
@@ -46,7 +44,6 @@ const formatCoordinates = (coords: string | null | undefined | { latitude: numbe
     }
     return `${parseFloat(latitude).toFixed(6)}, ${parseFloat(longitude).toFixed(6)}`;
   } else if (typeof coords === "object" && coords !== null) {
-    // Handle object format with latitude and longitude properties
     const lat = coords.latitude;
     const lng = coords.longitude;
     if (lat === undefined || lng === undefined) {
@@ -61,7 +58,6 @@ const formatCoordinates = (coords: string | null | undefined | { latitude: numbe
 const getGoogleMapsLink = (coords: string | null | undefined | { latitude: number; longitude: number }): string | null => {
   if (!coords) return null;
   
-  // Handle both string format "lat,lng" and object format
   let latitude, longitude;
   
   if (typeof coords === "string") {
@@ -96,38 +92,6 @@ const formatCaseInfo = (caseNumber: string, caseName: string): string => {
 };
 
 const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, onEdit }) => {
-  const { toast } = useToast();
-
-  const handleGenerateReport = async (clientId: string) => {
-    try {
-      const client = clients.find(c => c.id === clientId || c.$id === clientId);
-      if (!client) {
-        toast({
-          title: "Error",
-          description: "Client not found",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      const clientServes = serves.filter(serve => serve.clientId === clientId);
-      await generateServeReportPDF(client, clientServes);
-      
-      toast({
-        title: "Report Generated",
-        description: "Service report PDF has been downloaded successfully.",
-        variant: "success"
-      });
-    } catch (error) {
-      console.error('Error generating report:', error);
-      toast({
-        title: "Generation Failed",
-        description: "Failed to generate the report. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
   console.log("ServeHistory component received serves:", serves);
   console.log("ServeHistory component received clients:", clients);
 
@@ -152,55 +116,19 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
 
   return (
     <div className="space-y-6">
-      {/* PDF Generation Controls */}
-      <div className="bg-accent/20 p-4 rounded-lg">
-        <h3 className="font-medium mb-3">Generate Documents</h3>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(groupedServes).map(([key, caseServes]) => {
-            const serve = caseServes[0];
-            const client = clients.find(c => c.id === serve.clientId || c.$id === serve.clientId);
-            
-            if (!client) return null;
-            
-            return (
-              <div key={key} className="flex gap-2">
-                <AffidavitGenerator
-                  client={client}
-                  serves={caseServes}
-                  caseNumber={serve.caseNumber}
-                  caseName={serve.caseName}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleGenerateReport(serve.clientId)}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Report: {client.name}
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Existing serve history grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {serves.map((serve) => {
-          // Make sure we have a valid serve object with an id
           if (!serve || !serve.id) {
             console.warn("Invalid serve attempt in list:", serve);
             return null;
           }
           
-          // Get client name - first use directly from serve object, fall back to lookup by id
           const clientName = serve.clientName && serve.clientName !== "Unknown Client" 
             ? serve.clientName 
             : getClientName(serve.clientId, clients);
           
           const googleMapsLink = getGoogleMapsLink(serve.coordinates);
           
-          // Debug information
           console.log(`Rendering serve ${serve.id}:`, {
             clientName,
             clientId: serve.clientId,
@@ -214,23 +142,36 @@ const ServeHistory: React.FC<ServeHistoryProps> = ({ serves, clients, onDelete, 
             formattedDate: formatDate(serve.timestamp)
           });
 
-          // Get formatted case display
           const caseDisplay = formatCaseInfo(serve.caseNumber || "Unknown", serve.caseName || "");
+
+          // Find client for affidavit generation
+          const client = clients.find(c => c.id === serve.clientId || c.$id === serve.clientId);
+          const caseServes = serves.filter(s => s.clientId === serve.clientId && s.caseNumber === serve.caseNumber);
 
           return (
             <Card key={serve.id} className="overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="flex justify-between items-center">
                   <span>{clientName}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    serve.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                    serve.status === 'failed' ? 'bg-amber-100 text-amber-700' : 
-                    'bg-gray-100 text-gray-700'
-                  }`}>
-                    {serve.status === 'completed' ? 'Successful' : 
-                     serve.status === 'failed' ? 'Failed' : 
-                     'Unknown'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {client && (
+                      <AffidavitGenerator
+                        client={client}
+                        serves={caseServes}
+                        caseNumber={serve.caseNumber}
+                        caseName={serve.caseName}
+                      />
+                    )}
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      serve.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                      serve.status === 'failed' ? 'bg-amber-100 text-amber-700' : 
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {serve.status === 'completed' ? 'Successful' : 
+                       serve.status === 'failed' ? 'Failed' : 
+                       'Unknown'}
+                    </span>
+                  </div>
                 </CardTitle>
                 <CardDescription>
                   <span className="flex items-center gap-1">

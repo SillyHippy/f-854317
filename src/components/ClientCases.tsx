@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,7 +41,7 @@ interface CaseData {
   id: string;
   client_id: string;
   case_number: string;
-  case_name: string | null;
+  person_entity_being_served: string | null;
   court_name: string | null;
   plaintiff_petitioner: string | null;
   defendant_respondent: string | null;
@@ -52,7 +53,7 @@ interface CaseData {
 
 const caseSchema = z.object({
   caseNumber: z.string().min(1, 'Case number is required'),
-  caseName: z.string().optional(),
+  personEntityBeingServed: z.string().min(1, 'Person/Entity Being Served is required'),
   courtName: z.string().optional(),
   plaintiffPetitioner: z.string().optional(),
   defendantRespondent: z.string().optional(),
@@ -79,7 +80,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
     resolver: zodResolver(caseSchema),
     defaultValues: {
       caseNumber: '',
-      caseName: '',
+      personEntityBeingServed: '',
       courtName: '',
       plaintiffPetitioner: '',
       defendantRespondent: '',
@@ -114,7 +115,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
       const caseData = {
         client_id: client.id,
         case_number: data.caseNumber,
-        case_name: data.caseName || null,
+        person_entity_being_served: data.personEntityBeingServed || null,
         court_name: data.courtName || null,
         plaintiff_petitioner: data.plaintiffPetitioner || null,
         defendant_respondent: data.defendantRespondent || null,
@@ -160,7 +161,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
   const handleEdit = (caseItem: CaseData) => {
     setEditingCase(caseItem);
     form.setValue('caseNumber', caseItem.case_number);
-    form.setValue('caseName', caseItem.case_name || '');
+    form.setValue('personEntityBeingServed', caseItem.person_entity_being_served || '');
     form.setValue('courtName', caseItem.court_name || '');
     form.setValue('plaintiffPetitioner', caseItem.plaintiff_petitioner || '');
     form.setValue('defendantRespondent', caseItem.defendant_respondent || '');
@@ -253,12 +254,12 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
 
                 <FormField
                   control={form.control}
-                  name="caseName"
+                  name="personEntityBeingServed"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Case Name</FormLabel>
+                      <FormLabel>Person/Entity Being Served *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter case name" {...field} />
+                        <Input placeholder="Enter person or entity being served" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -392,7 +393,7 @@ const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
           <Card key={caseItem.id} className="bg-card text-card-foreground shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg font-semibold leading-none tracking-tight">
-                {caseItem.case_name || caseItem.case_number}
+                {caseItem.person_entity_being_served || caseItem.case_number}
               </CardTitle>
             </CardHeader>
             <CardContent>

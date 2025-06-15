@@ -1,4 +1,3 @@
-
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox } from 'pdf-lib';
 import { ServeAttemptData } from '@/components/ServeAttempt';
 
@@ -12,6 +11,7 @@ export interface AffidavitData {
   courtName?: string;
   plaintiffPetitioner?: string;
   defendantRespondent?: string;
+  serviceAddress?: string;
 }
 
 export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> => {
@@ -108,7 +108,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         
         // Helper function to fill text fields only if value exists
         const tryFillField = (fieldNames: string[], value: string | undefined) => {
-          if (!value || value.trim() === '') return false;
+          if (!value || value.trim() === '' || value === 'Not specified') return false;
           
           for (const fieldName of fieldNames) {
             try {
@@ -143,7 +143,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         };
         
         // Fill case number if available
-        if (data.caseNumber) {
+        if (data.caseNumber && data.caseNumber !== 'N/A') {
           tryFillField([
             'Case Number', 
             'case_number', 
@@ -153,7 +153,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         }
 
         // Fill Name of Court
-        if (data.courtName) {
+        if (data.courtName && data.courtName !== 'Not specified') {
           const courtFilled = tryFillField([
             'Name of Court',
             'NAME OF COURT',
@@ -165,7 +165,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         }
 
         // Fill Plaintiff/Petitioner
-        if (data.plaintiffPetitioner) {
+        if (data.plaintiffPetitioner && data.plaintiffPetitioner !== 'Not specified') {
           const plaintiffFilled = tryFillField([
             'Plaintiff/Petitioner',
             'PLAINTIFF/PETITIONER',
@@ -177,7 +177,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         }
 
         // Fill Defendant/Respondent
-        if (data.defendantRespondent) {
+        if (data.defendantRespondent && data.defendantRespondent !== 'Not specified') {
           const defendantFilled = tryFillField([
             'Defendant/Respondent',
             'DEFENDANT/RESPONDENT',
@@ -189,7 +189,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         }
         
         // Fill "NAME OF PERSON / ENTITY BEING SERVED" field
-        if (data.personEntityBeingServed) {
+        if (data.personEntityBeingServed && data.personEntityBeingServed !== 'Unknown') {
           const filled = tryFillField([
             'Name of Person/Entity Being Served',
             'NAME OF PERSON / ENTITY BEING SERVED',
@@ -205,29 +205,26 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           }
         }
         
-        // Get the first serve attempt to determine addresses and service location
-        const firstServe = data.serveAttempts[0];
-        const serviceAddress = firstServe?.serviceAddress;
+        // Use the serviceAddress from the data object first, then fall back to first serve
+        const serviceAddress = data.serviceAddress || data.serveAttempts[0]?.serviceAddress;
         
-        console.log('Service address from serve attempt:', serviceAddress);
+        console.log('Service address for PDF:', serviceAddress);
         
         // Determine if service was at residence or business based on addresses
         let isResidenceService = false;
         let isBusinessService = false;
         
-        if (serviceAddress && firstServe) {
-          // Check if service address matches home address (residence)
-          if (firstServe.address && serviceAddress.toLowerCase().includes(firstServe.address.toLowerCase())) {
-            isResidenceService = true;
-          }
-          // You could add more logic here to detect business addresses
-          // For now, if it's not residence, assume it could be business
-          else if (serviceAddress.toLowerCase().includes('work') || 
-                   serviceAddress.toLowerCase().includes('office') ||
-                   serviceAddress.toLowerCase().includes('business')) {
+        if (serviceAddress && serviceAddress !== 'Not specified') {
+          // Check if service address contains business indicators
+          if (serviceAddress.toLowerCase().includes('work') || 
+              serviceAddress.toLowerCase().includes('office') ||
+              serviceAddress.toLowerCase().includes('business') ||
+              serviceAddress.toLowerCase().includes('corp') ||
+              serviceAddress.toLowerCase().includes('llc') ||
+              serviceAddress.toLowerCase().includes('inc')) {
             isBusinessService = true;
           } else {
-            // Default to residence if we have a service address but can't determine type
+            // Default to residence for most addresses
             isResidenceService = true;
           }
         }
@@ -259,7 +256,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           console.log(`Business checkbox checked: ${businessChecked}`);
         }
         
-        if (serviceAddress) {
+        if (serviceAddress && serviceAddress !== 'Not specified') {
           // Fill the residence address field first
           const residenceAddressFilled = tryFillField([
             'Residence address', 

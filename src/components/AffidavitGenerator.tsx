@@ -31,22 +31,47 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
+  // Extract data from serves and client cases
+  const firstServe = serves[0];
+  
+  // Try to get case info from client cases if available
+  const clientCase = client?.cases?.find(c => 
+    c.case_number === caseNumber || c.case_number === firstServe?.caseNumber
+  );
+  
+  // Use provided props first, then fall back to case data, then serve data
+  const displayCourtName = courtName || clientCase?.court_name || firstServe?.courtName || 'Not specified';
+  const displayPlaintiff = plaintiffPetitioner || clientCase?.plaintiff_petitioner || firstServe?.plaintiffPetitioner || 'Not specified';
+  const displayDefendant = defendantRespondent || clientCase?.defendant_respondent || firstServe?.defendantRespondent || 'Not specified';
+  const displayPersonBeingServed = firstServe?.personEntityBeingServed || caseName || clientCase?.case_name || 'Unknown';
+  const displayServiceAddress = firstServe?.serviceAddress || firstServe?.address || 'Not specified';
+  const displayCaseNumber = caseNumber || firstServe?.caseNumber || clientCase?.case_number || 'N/A';
+
+  console.log('AffidavitGenerator data:', {
+    courtName: displayCourtName,
+    plaintiffPetitioner: displayPlaintiff,
+    defendantRespondent: displayDefendant,
+    personBeingServed: displayPersonBeingServed,
+    serviceAddress: displayServiceAddress,
+    caseNumber: displayCaseNumber,
+    clientCase,
+    firstServe
+  });
+
   const handleGenerateAffidavit = async () => {
     setIsGenerating(true);
     
     try {
-      // Get person/entity being served from the first serve attempt
-      const personEntityBeingServed = serves[0]?.personEntityBeingServed || caseName || 'Unknown';
-
       const affidavitData: AffidavitData = {
         clientName: client.name,
         clientAddress: client.address,
-        caseNumber: caseNumber || '',
-        caseName: caseName || undefined,
-        personEntityBeingServed: personEntityBeingServed,
-        courtName: courtName || undefined,
-        plaintiffPetitioner: plaintiffPetitioner || undefined,
-        defendantRespondent: defendantRespondent || undefined,
+        caseNumber: displayCaseNumber,
+        caseName: displayPersonBeingServed,
+        personEntityBeingServed: displayPersonBeingServed,
+        courtName: displayCourtName,
+        plaintiffPetitioner: displayPlaintiff,
+        defendantRespondent: displayDefendant,
+        serviceAddress: displayServiceAddress,
         serveAttempts: serves
       };
 
@@ -87,12 +112,12 @@ const AffidavitGenerator: React.FC<AffidavitGeneratorProps> = ({
         
         <div className="space-y-4">
           <div className="text-sm space-y-2 border rounded-md p-4 bg-accent/20">
-            <p><strong>Court:</strong> {courtName || 'Not specified'}</p>
-            <p><strong>Plaintiff/Petitioner:</strong> {plaintiffPetitioner || 'Not specified'}</p>
-            <p><strong>Defendant/Respondent:</strong> {defendantRespondent || 'Not specified'}</p>
-            <p><strong>Person/Entity Being Served:</strong> {serves[0]?.personEntityBeingServed || caseName || 'Unknown'}</p>
-            <p><strong>Service Address:</strong> {serves[0]?.serviceAddress || 'Not specified'}</p>
-            <p><strong>Case Number:</strong> {caseNumber || 'N/A'}</p>
+            <p><strong>Court:</strong> {displayCourtName}</p>
+            <p><strong>Plaintiff/Petitioner:</strong> {displayPlaintiff}</p>
+            <p><strong>Defendant/Respondent:</strong> {displayDefendant}</p>
+            <p><strong>Person/Entity Being Served:</strong> {displayPersonBeingServed}</p>
+            <p><strong>Service Address:</strong> {displayServiceAddress}</p>
+            <p><strong>Case Number:</strong> {displayCaseNumber}</p>
             <p><strong>Attempts:</strong> {serves.length}</p>
           </div>
 

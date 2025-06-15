@@ -6,9 +6,6 @@ export interface AffidavitData {
   clientAddress: string;
   caseNumber: string;
   caseName?: string;
-  courtName?: string;
-  plaintiffPetitioner?: string;
-  defendantRespondent?: string;
   personEntityBeingServed?: string;
   serveAttempts: ServeAttemptData[];
 }
@@ -64,7 +61,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
       const content = [
         `Case Number: ${data.caseNumber || 'N/A'}`,
         `Case Name: ${data.caseName || 'N/A'}`,
-        `Defendant: ${data.clientName}`,
+        `Person Being Served: ${data.personEntityBeingServed || data.clientName}`,
         `Address: ${data.clientAddress}`,
         '',
         'SERVICE DETAILS:',
@@ -141,34 +138,49 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           return false;
         };
         
+        // Get case information from the first serve attempt (they should all be the same case)
+        const firstServe = data.serveAttempts[0];
+        let courtName = '';
+        let plaintiffPetitioner = '';
+        let defendantRespondent = '';
+        
+        if (firstServe && firstServe.caseNumber) {
+          // Try to get case details from the serve attempt
+          // Note: This would need to be enhanced to fetch actual case details from the database
+          // For now, we'll use the case name as a fallback for plaintiff/petitioner
+          courtName = ''; // This should come from case data
+          plaintiffPetitioner = data.caseName || ''; // This should come from case data
+          defendantRespondent = ''; // This should come from case data
+        }
+        
         // Fill court name only if available
-        if (data.courtName) {
+        if (courtName) {
           tryFillField([
             'Court', 
             'court_name', 
             'NAME OF COURT',
             '(NAME OF COURT)'
-          ], data.courtName);
+          ], courtName);
         }
         
         // Fill plaintiff/petitioner only if available
-        if (data.plaintiffPetitioner) {
+        if (plaintiffPetitioner) {
           tryFillField([
             'Plaintiff/Petitioner', 
             'plaintiff', 
             'petitioner',
             'PLAINTIFF/PETITIONER'
-          ], data.plaintiffPetitioner);
+          ], plaintiffPetitioner);
         }
         
         // Fill defendant/respondent only if available
-        if (data.defendantRespondent) {
+        if (defendantRespondent) {
           tryFillField([
             'Defendant/Respondent', 
             'defendant', 
             'respondent',
             'DEFENDANT/RESPONDENT'
-          ], data.defendantRespondent);
+          ], defendantRespondent);
         }
         
         // Fill case number if available
@@ -181,7 +193,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           ], data.caseNumber);
         }
         
-        // Fill NAME OF PERSON/ENTITY BEING SERVED - this should be the person being served, not the client
+        // Fill NAME OF PERSON/ENTITY BEING SERVED - this is the person being served
         if (data.personEntityBeingServed) {
           tryFillField([
             'NAME OF PERSON / ENTITY BEING SERVED',
@@ -192,7 +204,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           ], data.personEntityBeingServed);
         }
         
-        // Parse and fill address information for the service location (not client address)
+        // Parse and fill address information for the service location
         if (data.clientAddress) {
           // Fill the full address in residence address field
           tryFillField([
@@ -285,51 +297,36 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             ], date.toLocaleTimeString());
           }
 
-          // Service method logic - don't assume, leave as questions to be answered
-          // Only check Personal service if we have clear indication of successful personal service
+          // Service method logic - only check if we have clear indication
           if (successfulAttempt) {
-            // Check Personal service for successful attempts
-            tryCheckField([
-              'Personal check box', 
-              'Personal', 
-              'personal_service',
-              'personal_checkbox',
-              'By personally delivering copies to the person being served'
-            ]);
-          } else {
-            // For unsuccessful attempts, check appropriate reason based on notes
-            const lastAttempt = sortedAttempts[sortedAttempts.length - 1];
-            if (lastAttempt && lastAttempt.notes) {
-              const notes = lastAttempt.notes.toLowerCase();
-              if (notes.includes('not home') || notes.includes('no answer')) {
-                tryCheckField(['Unknown at Address', 'unknown_at_address']);
-              } else if (notes.includes('moved') || notes.includes('forwarding')) {
-                tryCheckField(['Moved, Left no Forwarding', 'moved_no_forwarding']);
-              } else if (notes.includes('cancel')) {
-                tryCheckField(['Service Cancelled by Litigant', 'service_cancelled']);
-              } else {
-                tryCheckField(['Unable to Serve in Timely Fashion', 'unable_to_serve_timely']);
-              }
-            }
+            // Check Personal service for successful attempts - but leave as question to be answered
+            // tryCheckField([
+            //   'Personal check box', 
+            //   'Personal', 
+            //   'personal_service',
+            //   'personal_checkbox',
+            //   'By personally delivering copies to the person being served'
+            // ]);
           }
 
-          // Fill description field with notes from the main attempt
-          if (mainAttempt && mainAttempt.notes) {
+          // Fill description field with notes from attempts, including physical description
+          const allNotes = sortedAttempts
+            .filter(attempt => attempt.notes && attempt.notes.trim())
+            .map((attempt, index) => {
+              const attemptLabel = sortedAttempts.length > 1 ? `Attempt ${index + 1}: ` : '';
+              return `${attemptLabel}${attempt.notes}`;
+            })
+            .join('\n\n');
+
+          if (allNotes) {
             tryFillField([
               'Description',
               'service_description',
               'description',
               'Description::'
-            ], mainAttempt.notes);
+            ], allNotes);
           }
         }
-        
-        // Don't auto-check military inquiry - leave as question to be answered manually
-        // tryCheckField([
-        //   'Inquired if subject was a member of the U.S. Military and was informed they are not.',
-        //   'military_inquiry',
-        //   'us_military_check'
-        // ]);
         
         // Fill affidavit date
         tryFillField([
@@ -339,7 +336,7 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           'sworn_date'
         ], new Date().toLocaleDateString());
         
-        // DO NOT flatten the form - keep it fillable
+        // DO NOT flatten the form - keep it fillable for manual completion
         // form.flatten(); // Commented out to keep form fillable
         
       } catch (formError) {

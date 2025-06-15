@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,13 +29,14 @@ import { embedGpsIntoImage } from "@/utils/gps";
 import { formatCoordinates } from "@/utils/gps";
 import { createServeEmailBody } from "@/utils/email";
 import { useToast } from "@/components/ui/use-toast";
-import { MapPin, Mail, Camera, AlertCircle, CheckCircle, Loader2, ExternalLink, Search } from "lucide-react";
+import { MapPin, Mail, Camera, AlertCircle, CheckCircle, Loader2, ExternalLink, Search, User } from "lucide-react";
 import { getClientCases, getServeAttemptsCount } from "@/utils/appwriteStorage";
 import { appwrite } from "@/lib/appwrite";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { debugImageData } from "@/utils/imageUtils";
+import PhysicalDescriptionForm, { PhysicalDescriptionData } from "./PhysicalDescriptionForm";
 
 export interface ServeAttemptData {
   id?: string;
@@ -50,6 +52,7 @@ export interface ServeAttemptData {
   caseNumber?: string;
   caseName?: string;
   address?: string;
+  physicalDescription?: PhysicalDescriptionData;
 }
 
 interface ServeAttemptProps {
@@ -107,6 +110,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   const [addressSearchOpen, setAddressSearchOpen] = useState(false);
   const [isLoadingCases, setIsLoadingCases] = useState(false);
   const [caseAttemptCount, setCaseAttemptCount] = useState(0);
+  const [physicalDescription, setPhysicalDescription] = useState<PhysicalDescriptionData | undefined>();
   const { toast } = useToast();
   const isMobile = useIsMobile();
   
@@ -277,6 +281,23 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     console.log("Opening address location in Google Maps:", address);
   };
 
+  const handlePhysicalDescriptionSave = (data: PhysicalDescriptionData) => {
+    setPhysicalDescription(data);
+  };
+
+  const formatPhysicalDescription = (desc: PhysicalDescriptionData): string => {
+    const parts: string[] = [];
+    if (desc.age) parts.push(`Age: ${desc.age}`);
+    if (desc.sex) parts.push(`Sex: ${desc.sex}`);
+    if (desc.race) parts.push(`Race: ${desc.race}`);
+    if (desc.height) parts.push(`Height: ${desc.height}`);
+    if (desc.weight) parts.push(`Weight: ${desc.weight}`);
+    if (desc.hair) parts.push(`Hair: ${desc.hair}`);
+    if (desc.beard) parts.push(`Beard: ${desc.beard}`);
+    if (desc.glasses) parts.push(`Glasses: ${desc.glasses}`);
+    return parts.join(', ');
+  };
+
   const handleSubmit = async (data: ServeFormValues) => {
     if (!capturedImage || !location || !selectedClient || !selectedCase) {
       console.error("Missing required information. Please try again.");
@@ -293,6 +314,14 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
     try {
       const imageWithGPS = embedGpsIntoImage(capturedImage, location);
 
+      let finalNotes = data.notes || "";
+      if (physicalDescription && data.status === "completed") {
+        const descText = formatPhysicalDescription(physicalDescription);
+        if (descText) {
+          finalNotes = finalNotes ? `${finalNotes}\n\nPhysical Description: ${descText}` : `Physical Description: ${descText}`;
+        }
+      }
+
       const serveData: ServeAttemptData = {
         clientId: selectedClient.id,
         clientName: selectedClient.name,
@@ -302,10 +331,11 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         imageData: imageWithGPS,
         coordinates: `${location.latitude},${location.longitude}`,
         address: selectedCase.homeAddress || selectedCase.workAddress || selectedClient.address || "No address available",
-        notes: data.notes || "",
+        notes: finalNotes,
         timestamp: new Date(),
         status: data.status,
         attemptNumber: caseAttemptCount + 1,
+        physicalDescription,
       };
 
       console.log("Submitting serve attempt data to Appwrite:", serveData);
@@ -325,6 +355,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
       setLocation(null);
       setSelectedClient(null);
       setSelectedCase(null);
+      setPhysicalDescription(undefined);
       setStep("select");
     } catch (error) {
       console.error("Error saving serve attempt:", error);
@@ -343,6 +374,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
   };
 
   const isCaseSelected = !!form.watch("caseNumber");
+  const isSuccessfulServe = form.watch("status") === "completed";
 
   return (
     <div className="animate-slide-in w-full max-w-md mx-auto">
@@ -680,6 +712,34 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
                     </FormItem>
                   )}
                 />
+
+                {isSuccessfulServe && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Physical Description (Optional)</Label>
+                    <PhysicalDescriptionForm 
+                      onSave={handlePhysicalDescriptionSave}
+                      initialData={physicalDescription}
+                    >
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        className="w-full justify-start"
+                        size="sm"
+                      >
+                        <User className="w-4 h-4 mr-2" />
+                        {physicalDescription && Object.values(physicalDescription).some(v => v && v.trim()) 
+                          ? "Edit Physical Description" 
+                          : "Add Physical Description"
+                        }
+                      </Button>
+                    </PhysicalDescriptionForm>
+                    {physicalDescription && Object.values(physicalDescription).some(v => v && v.trim()) && (
+                      <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
+                        {formatPhysicalDescription(physicalDescription)}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <FormField
                   control={form.control}

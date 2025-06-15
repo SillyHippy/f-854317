@@ -1,868 +1,463 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
-  Card, 
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
   DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import {
-  Plus,
-  FileEdit,
-  Trash2,
-  Clock,
-  Upload,
-  File,
-  Paperclip,
-  Home,
-  Building,
-  MapPin,
-  ExternalLink
-} from "lucide-react";
-import { appwrite } from "@/lib/appwrite";
-import { uploadClientDocument, getClientDocuments, getDocumentUrl, deleteClientDocument } from "@/utils/appwriteStorage";
-import ClientDocuments from "@/components/ClientDocuments";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { UploadedDocument } from "@/types/documentTypes";
+  DialogFooter 
+} from '@/components/ui/dialog';
+import { 
+  Form, 
+  FormControl, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormMessage 
+} from '@/components/ui/form';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { Plus, Edit2, Trash2, MapPin, ExternalLink } from 'lucide-react';
+import { ClientData } from './ClientForm';
+import { appwrite } from '@/lib/appwrite';
+import { toast } from '@/hooks/use-toast';
 
-interface ClientCase {
-  $id: string;
+interface CaseData {
+  id: string;
   client_id: string;
   case_number: string;
   case_name: string | null;
-  description: string | null;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  home_address?: string;
-  work_address?: string;
+  court_name: string | null;
+  plaintiff_petitioner: string | null;
+  defendant_respondent: string | null;
+  home_address: string | null;
+  work_address: string | null;
+  notes: string | null;
+  status: 'Open' | 'Closed';
 }
+
+const caseSchema = z.object({
+  caseNumber: z.string().min(1, 'Case number is required'),
+  caseName: z.string().optional(),
+  courtName: z.string().optional(),
+  plaintiffPetitioner: z.string().optional(),
+  defendantRespondent: z.string().optional(),
+  homeAddress: z.string().optional(),
+  workAddress: z.string().optional(),
+  notes: z.string().optional(),
+  status: z.enum(['Open', 'Closed']),
+});
+
+type CaseFormValues = z.infer<typeof caseSchema>;
 
 interface ClientCasesProps {
-  clientId: string;
-  clientName: string;
+  client: ClientData;
+  onUpdate?: () => void;
 }
 
-export default function ClientCases({ clientId, clientName }: ClientCasesProps) {
-  const [cases, setCases] = useState<ClientCase[]>([]);
-  const [addCaseDialogOpen, setAddCaseDialogOpen] = useState(false);
-  const [editCaseDialogOpen, setEditCaseDialogOpen] = useState(false);
-  const [deleteCaseDialogOpen, setDeleteCaseDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("cases");
-  const [activeCase, setActiveCase] = useState<string | null>(null);
-  const isMobile = useIsMobile();
-  
-  const [caseNumber, setCaseNumber] = useState("");
-  const [caseName, setCaseName] = useState("");
-  const [description, setDescription] = useState("");
-  const [homeAddress, setHomeAddress] = useState("");
-  const [workAddress, setWorkAddress] = useState("");
-  const [status, setStatus] = useState("Active");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [selectedCase, setSelectedCase] = useState<ClientCase | null>(null);
-  
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileDescription, setFileDescription] = useState("");
-  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
-  const [viewDocumentUrl, setViewDocumentUrl] = useState<string | null>(null);
-  const [viewDocumentName, setViewDocumentName] = useState("");
-  const [viewDocumentDialogOpen, setViewDocumentDialogOpen] = useState(false);
-  const [deleteDocumentId, setDeleteDocumentId] = useState<string | null>(null);
-  const [deleteDocumentPath, setDeleteDocumentPath] = useState<string | null>(null);
-  const [deleteDocumentDialogOpen, setDeleteDocumentDialogOpen] = useState(false);
+const ClientCases: React.FC<ClientCasesProps> = ({ client, onUpdate }) => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [cases, setCases] = useState<CaseData[]>([]);
+  const [editingCase, setEditingCase] = useState<CaseData | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<CaseFormValues>({
+    resolver: zodResolver(caseSchema),
+    defaultValues: {
+      caseNumber: '',
+      caseName: '',
+      courtName: '',
+      plaintiffPetitioner: '',
+      defendantRespondent: '',
+      homeAddress: '',
+      workAddress: '',
+      notes: '',
+      status: 'Open',
+    },
+  });
 
   useEffect(() => {
-    const fetchCases = async () => {
-      setIsLoading(true);
-      try {
-        console.log('Fetching cases for client:', clientId);
-        const cases = await appwrite.getClientCases(clientId);
-        console.log('Cases fetched:', cases);
-        
-        setCases(cases);
-        
-        if (cases.length > 0 && !activeCase) {
-          setActiveCase(cases[0].$id);
-        }
-      } catch (error) {
-        console.error("Error fetching client cases:", error);
-        toast.error("Error fetching cases", {
-          description: "There was a problem loading cases for this client."
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchCases();
-    
-    const handleCasesUpdated = () => {
-      console.log("Cases updated event received, refreshing cases");
-      fetchCases();
-    };
+  }, [client]);
 
-    window.addEventListener('cases-updated', handleCasesUpdated);
-    
-    return () => {
-      window.removeEventListener('cases-updated', handleCasesUpdated);
-    };
-  }, [clientId, activeCase]);
-
-  const resetForm = () => {
-    setCaseNumber("");
-    setCaseName("");
-    setDescription("");
-    setHomeAddress("");
-    setWorkAddress("");
-    setStatus("Active");
-    setSelectedCase(null);
-    setSelectedFile(null);
-    setFileDescription("");
+  const fetchCases = async () => {
+    try {
+      const caseList = await appwrite.getClientCases(client.id);
+      setCases(caseList);
+    } catch (error) {
+      console.error('Error fetching cases:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch cases. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAddCase = async () => {
-    if (!caseNumber.trim()) {
-      toast.error("Case number is required");
-      return;
-    }
-
-    setIsSaving(true);
-    
+  const handleSubmit = async (data: CaseFormValues) => {
+    setIsSubmitting(true);
     try {
       const caseData = {
-        clientId,
-        caseNumber: caseNumber.trim(),
-        caseName: caseName.trim(),
-        description: description.trim(),
-        status: status || 'Active',
-        homeAddress: homeAddress.trim(),
-        workAddress: workAddress.trim()
+        client_id: client.id,
+        case_number: data.caseNumber,
+        case_name: data.caseName || null,
+        court_name: data.courtName || null,
+        plaintiff_petitioner: data.plaintiffPetitioner || null,
+        defendant_respondent: data.defendantRespondent || null,
+        home_address: data.homeAddress || null,
+        work_address: data.workAddress || null,
+        notes: data.notes || null,
+        status: data.status,
       };
 
-      console.log('Submitting case data:', caseData);
-      const newCase = await appwrite.createClientCase(caseData);
-      console.log('New case created:', newCase);
-      
-      if (!newCase) {
-        throw new Error('Failed to create case');
-      }
-
-      toast.success("Case added successfully");
-      setCases(prev => [...prev, newCase]);
-      setActiveCase(newCase.$id);
-      setAddCaseDialogOpen(false);
-      resetForm();
-    } catch (error) {
-      console.error("Error adding case:", error);
-      toast.error("Failed to create case");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleUpdateCase = async () => {
-    if (!selectedCase) return;
-    
-    setIsSaving(true);
-    
-    try {
-      const updatedCase = await appwrite.updateClientCase(selectedCase.$id, {
-        caseNumber: caseNumber,
-        caseName: caseName || "",
-        description: description || "",
-        status: status,
-        homeAddress: homeAddress || "",
-        workAddress: workAddress || ""
-      });
-      
-      setCases(prevCases => 
-        prevCases.map(c => c.$id === selectedCase.$id ? updatedCase : c)
-      );
-      
-      setEditCaseDialogOpen(false);
-      resetForm();
-      
-      toast.success("Case updated", {
-        description: "Case information has been updated."
-      });
-    } catch (error) {
-      console.error("Error updating case:", error);
-      toast.error("Error updating case", {
-        description: "There was a problem updating the case."
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDeleteCase = async () => {
-    if (!selectedCase) return;
-    
-    try {
-      await appwrite.deleteClientCase(selectedCase.$id);
-      
-      setCases(prevCases => prevCases.filter(c => c.$id !== selectedCase.$id));
-      
-      if (activeCase === selectedCase.$id) {
-        const remainingCases = cases.filter(c => c.$id !== selectedCase.$id);
-        setActiveCase(remainingCases.length > 0 ? remainingCases[0].$id : null);
-      }
-      
-      setDeleteCaseDialogOpen(false);
-      resetForm();
-      
-      toast.success("Case deleted", {
-        description: "Case has been permanently removed."
-      });
-    } catch (error) {
-      console.error("Error deleting case:", error);
-      toast.error("Error deleting case", {
-        description: "There was a problem deleting the case."
-      });
-    }
-  };
-
-  const handleEditCase = (clientCase: ClientCase) => {
-    setSelectedCase(clientCase);
-    setCaseNumber(clientCase.case_number);
-    setCaseName(clientCase.case_name);
-    setDescription(clientCase.description);
-    setHomeAddress(clientCase.home_address || "");
-    setWorkAddress(clientCase.work_address || "");
-    setStatus(clientCase.status);
-    setEditCaseDialogOpen(true);
-  };
-
-  const handleDeleteCaseButton = (clientCase: ClientCase) => {
-    setSelectedCase(clientCase);
-    setDeleteCaseDialogOpen(true);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
-  const handleUploadDocument = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedFile || !activeCase) return;
-    
-    setIsUploading(true);
-    
-    try {
-      const activeClientCase = cases.find(c => c.$id === activeCase);
-      if (!activeClientCase) throw new Error("Case not found");
-      
-      const document = await uploadClientDocument(
-        clientId,
-        selectedFile,
-        activeClientCase.case_number,
-        fileDescription
-      );
-      
-      if (!document) throw new Error("Upload failed");
-      
-      const documents = await getClientDocuments(clientId);
-      setDocuments(documents);
-      
-      setUploadDialogOpen(false);
-      setSelectedFile(null);
-      setFileDescription("");
-      
-      toast.success("Document uploaded", {
-        description: "Document has been successfully uploaded."
-      });
-    } catch (error) {
-      console.error("Error uploading document:", error);
-      toast.error("Error uploading document", {
-        description: "There was a problem uploading the document."
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleViewDocument = async (doc: UploadedDocument) => {
-    try {
-      const url = await getDocumentUrl(doc.filePath);
-      if (url) {
-        setViewDocumentUrl(url);
-        setViewDocumentName(doc.fileName);
-        setViewDocumentDialogOpen(true);
+      if (editingCase) {
+        await appwrite.updateCase(editingCase.id, caseData);
+        toast({
+          title: "Case updated",
+          description: "Case has been updated successfully.",
+          variant: "success",
+        });
       } else {
-        throw new Error("Could not get document URL");
+        await appwrite.createCase(caseData);
+        toast({
+          title: "Case created",
+          description: "New case has been created successfully.",
+          variant: "success",
+        });
       }
+
+      setIsDialogOpen(false);
+      setEditingCase(null);
+      form.reset();
+      fetchCases();
+      onUpdate?.();
     } catch (error) {
-      console.error("Error viewing document:", error);
-      toast.error("Error viewing document", {
-        description: "There was a problem accessing the document."
+      console.error('Error saving case:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save case. Please try again.",
+        variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDeleteDocumentButton = (id: string, filePath: string) => {
-    setDeleteDocumentId(id);
-    setDeleteDocumentPath(filePath);
-    setDeleteDocumentDialogOpen(true);
+  const handleEdit = (caseItem: CaseData) => {
+    setEditingCase(caseItem);
+    form.setValue('caseNumber', caseItem.case_number);
+    form.setValue('caseName', caseItem.case_name || '');
+    form.setValue('courtName', caseItem.court_name || '');
+    form.setValue('plaintiffPetitioner', caseItem.plaintiff_petitioner || '');
+    form.setValue('defendantRespondent', caseItem.defendant_respondent || '');
+    form.setValue('homeAddress', caseItem.home_address || '');
+    form.setValue('workAddress', caseItem.work_address || '');
+    form.setValue('notes', caseItem.notes || '');
+    form.setValue('status', caseItem.status);
+    setIsDialogOpen(true);
   };
 
-  const handleDeleteDocument = async () => {
-    if (!deleteDocumentId || !deleteDocumentPath) return;
-    
-    try {
-      const success = await deleteClientDocument(deleteDocumentId, deleteDocumentPath);
-      
-      if (!success) throw new Error("Delete failed");
-      
-      const documents = await getClientDocuments(clientId);
-      setDocuments(documents);
-      
-      setDeleteDocumentDialogOpen(false);
-      setDeleteDocumentId(null);
-      setDeleteDocumentPath(null);
-      
-      toast.success("Document deleted", {
-        description: "Document has been permanently removed."
-      });
-    } catch (error) {
-      console.error("Error deleting document:", error);
-      toast.error("Error deleting document", {
-        description: "There was a problem deleting the document."
-      });
-    }
-  };
-
-  const getActiveCase = () => {
-    return cases.find(c => c.$id === activeCase);
-  };
-
-  const getMapLink = (address: string) => {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-  };
-
-  const handleAddressClick = (address: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    window.open(getMapLink(address), '_blank', 'noopener,noreferrer');
-    toast.success("Opening map", {
-      description: "Opening address location in Google Maps"
-    });
-  };
-
-  const handleUploadFromEditDialog = () => {
-    if (selectedCase) {
-      setActiveCase(selectedCase.$id);
-      setEditCaseDialogOpen(false);
-      setUploadDialogOpen(true);
+  const handleDelete = async (caseItem: CaseData) => {
+    if (window.confirm(`Are you sure you want to delete case ${caseItem.case_number}?`)) {
+      try {
+        await appwrite.deleteCase(caseItem.id);
+        toast({
+          title: "Case deleted",
+          description: "Case has been deleted successfully.",
+          variant: "success",
+        });
+        fetchCases();
+        onUpdate?.();
+      } catch (error) {
+        console.error('Error deleting case:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete case. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="cases" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="cases">Cases</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="cases" className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold truncate">{clientName}'s Cases</h2>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Cases</h3>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Case
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingCase ? 'Edit Case' : 'Add New Case'}
+              </DialogTitle>
+            </DialogHeader>
             
-            <Dialog open={addCaseDialogOpen} onOpenChange={setAddCaseDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Case
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="h-[95vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Case</DialogTitle>
-                  <DialogDescription>
-                    Enter the details for a new case for {clientName}
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  handleAddCase();
-                }}>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="case-number">Case Number</Label>
-                      <Input
-                        id="case-number"
-                        value={caseNumber}
-                        onChange={(e) => setCaseNumber(e.target.value)}
-                        placeholder="e.g., CV-2023-0001"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="case-name">To Be Served</Label>
-                      <Input
-                        id="case-name"
-                        value={caseName}
-                        onChange={(e) => setCaseName(e.target.value)}
-                        placeholder="e.g., John Doe"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="home-address">Home Address</Label>
-                        <Input
-                          id="home-address"
-                          value={homeAddress}
-                          onChange={(e) => setHomeAddress(e.target.value)}
-                          placeholder="Enter home address"
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="caseNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Case Number *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter case number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Open">Open</SelectItem>
+                              <SelectItem value="Closed">Closed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="caseName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Case Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter case name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="courtName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Court Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter court name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="plaintiffPetitioner"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Plaintiff/Petitioner</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter plaintiff/petitioner name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="defendantRespondent"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Defendant/Respondent</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter defendant/respondent name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="homeAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Home Address</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Enter home address" 
+                            rows={3}
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="workAddress"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Work Address</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Enter work address" 
+                            rows={3}
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Additional notes about this case..." 
+                          rows={3}
+                          {...field} 
                         />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="work-address">Work Address</Label>
-                        <Input
-                          id="work-address"
-                          value={workAddress}
-                          onChange={(e) => setWorkAddress(e.target.value)}
-                          placeholder="Enter work address"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Notes</Label>
-                      <Textarea
-                        id="description"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Additional case information"
-                        rows={3}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="status">Status</Label>
-                      <Select value={status} onValueChange={setStatus}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Active">Active</SelectItem>
-                          <SelectItem value="Pending">Pending</SelectItem>
-                          <SelectItem value="Closed">Closed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <DialogFooter className="mt-8">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => {
-                        resetForm();
-                        setAddCaseDialogOpen(false);
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={isSaving}>
-                      {isSaving ? "Saving..." : "Add Case"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-          
-          {isLoading ? (
-            <div className="text-center py-10">
-              <div role="status" className="inline-block">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-                <span className="sr-only">Loading...</span>
-              </div>
-              <p className="mt-2 text-muted-foreground">Loading cases...</p>
-            </div>
-          ) : cases.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center">
-                <p className="text-muted-foreground mb-4">No cases found for this client.</p>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setAddCaseDialogOpen(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add First Case
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-                {cases.map((c) => (
-                  <Card 
-                    key={c.$id} 
-                    className={`overflow-hidden cursor-pointer transition-all hover:shadow-md w-full ${activeCase === c.$id ? 'ring-2 ring-primary' : ''}`}
-                    onClick={() => setActiveCase(c.$id)}
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <DialogFooter>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setEditingCase(null);
+                      form.reset();
+                    }}
                   >
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between">
-                        <CardTitle className="flex-1 truncate">
-                          {c.case_name || c.case_number}
-                        </CardTitle>
-                        
-                        <div className="flex items-center gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditCase(c);
-                            }}
-                          >
-                            <FileEdit className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCaseButton(c);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <CardDescription className="flex items-center justify-between">
-                        <span className="truncate">Case #{c.case_number}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          c.status === 'Active' ? 'bg-green-100 text-green-800' :
-                          c.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {c.status}
-                        </span>
-                      </CardDescription>
-                    </CardHeader>
-                    
-                    <CardContent className="pb-3">
-                      {c.description && (
-                        <div className="space-y-2">
-                          <h4 className="font-medium">Notes</h4>
-                          <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{c.description}</p>
-                        </div>
-                      )}
-                      
-                      {(c.home_address || c.work_address) && (
-                        <div className="space-y-2 mt-2">
-                          <h4 className="font-medium">Addresses</h4>
-                          <div className="space-y-2">
-                            {c.home_address && (
-                              <a 
-                                href={getMapLink(c.home_address)}
-                                className="text-sm text-primary hover:underline flex items-center group"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => handleAddressClick(c.home_address, e)}
-                              >
-                                <Home className="h-3 w-3 mr-1 inline flex-shrink-0" />
-                                <span className="flex-1 truncate">{c.home_address}</span>
-                                <ExternalLink className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                              </a>
-                            )}
-                            
-                            {c.work_address && (
-                              <a 
-                                href={getMapLink(c.work_address)}
-                                className="text-sm text-primary hover:underline flex items-center group"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => handleAddressClick(c.work_address, e)}
-                              >
-                                <Building className="h-3 w-3 mr-1 inline flex-shrink-0" />
-                                <span className="flex-1 truncate">{c.work_address}</span>
-                                <ExternalLink className="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div className="flex items-center space-x-2 mt-3 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3 flex-shrink-0" />
-                        <span>Created {new Date(c.created_at).toLocaleDateString()}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : (editingCase ? 'Update Case' : 'Create Case')}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {cases.map((caseItem) => (
+          <Card key={caseItem.id} className="bg-card text-card-foreground shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold leading-none tracking-tight">
+                {caseItem.case_name || caseItem.case_number}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1 text-sm">
+                {caseItem.court_name && (
+                  <p>
+                    <strong>Court:</strong> {caseItem.court_name}
+                  </p>
+                )}
+                <p>
+                  <strong>Case Number:</strong> {caseItem.case_number}
+                </p>
+                {caseItem.home_address && (
+                  <p className="flex items-center gap-1">
+                    <strong>Home:</strong>
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(caseItem.home_address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-0.5"
+                    >
+                      {caseItem.home_address}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </p>
+                )}
+                {caseItem.work_address && (
+                  <p className="flex items-center gap-1">
+                    <strong>Work:</strong>
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(caseItem.work_address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-0.5"
+                    >
+                      {caseItem.work_address}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </p>
+                )}
+                {caseItem.notes && (
+                  <p>
+                    <strong>Notes:</strong> {caseItem.notes}
+                  </p>
+                )}
+                <p>
+                  <strong>Status:</strong> <Badge variant={caseItem.status === 'Open' ? 'default' : 'secondary'}>{caseItem.status}</Badge>
+                </p>
               </div>
-              
-              {activeCase && (
-                <Card className="mt-6">
-                  <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle className="truncate">
-                        {getActiveCase()?.case_name || getActiveCase()?.case_number}
-                      </CardTitle>
-                    </div>
-                    <CardDescription className="flex items-center justify-between">
-                      <span>
-                        Case #{getActiveCase()?.case_number} - 
-                        <span className={`ml-2 ${
-                          getActiveCase()?.status === 'Active' ? 'text-green-600' :
-                          getActiveCase()?.status === 'Pending' ? 'text-yellow-600' :
-                          'text-gray-600'
-                        }`}>
-                          {getActiveCase()?.status}
-                        </span>
-                      </span>
-                    </CardDescription>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <div className="space-y-6">
-                      <ClientDocuments 
-                        clientId={clientId}
-                        caseNumber={getActiveCase()?.case_number}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="documents">
-          <ClientDocuments 
-            clientId={clientId}
-          />
-        </TabsContent>
-      </Tabs>
-      
-      <Dialog open={editCaseDialogOpen} onOpenChange={setEditCaseDialogOpen}>
-        <DialogContent className="h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex justify-between items-center">
-              <span>Edit Case</span>
-            </DialogTitle>
-            <DialogDescription>
-              Update case information
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            handleUpdateCase();
-          }}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-case-number">Case Number</Label>
-                <Input
-                  id="edit-case-number"
-                  value={caseNumber}
-                  onChange={(e) => setCaseNumber(e.target.value)}
-                  placeholder="e.g., CV-2023-0001"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-case-name">To Be Served</Label>
-                <Input
-                  id="edit-case-name"
-                  value={caseName}
-                  onChange={(e) => setCaseName(e.target.value)}
-                  placeholder="e.g., John Doe"
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-home-address">Home Address</Label>
-                  <Input
-                    id="edit-home-address"
-                    value={homeAddress}
-                    onChange={(e) => setHomeAddress(e.target.value)}
-                    placeholder="Enter home address"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="edit-work-address">Work Address</Label>
-                  <Input
-                    id="edit-work-address"
-                    value={workAddress}
-                    onChange={(e) => setWorkAddress(e.target.value)}
-                    placeholder="Enter work address"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Notes</Label>
-                <Textarea
-                  id="edit-description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Additional case information"
-                  rows={3}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-status">Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <DialogFooter className="mt-8">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => {
-                  resetForm();
-                  setEditCaseDialogOpen(false);
-                }}
-              >
-                Cancel
+            </CardContent>
+            <div className="flex justify-end space-x-2 p-3">
+              <Button size="sm" variant="ghost" onClick={() => handleEdit(caseItem)}>
+                <Edit2 className="w-4 h-4 mr-2" />
+                Edit
               </Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Saving..." : "Update Case"}
+              <Button size="sm" variant="ghost" onClick={() => handleDelete(caseItem)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      
-      <AlertDialog open={deleteCaseDialogOpen} onOpenChange={setDeleteCaseDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Case</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this case? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setSelectedCase(null);
-              setDeleteCaseDialogOpen(false);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCase} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      
-      <Dialog open={viewDocumentDialogOpen} onOpenChange={setViewDocumentDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{viewDocumentName}</DialogTitle>
-          </DialogHeader>
-          {viewDocumentUrl && (
-            <div className="w-full max-h-[70vh] overflow-auto border rounded-lg">
-              <iframe
-                src={viewDocumentUrl}
-                className="w-full h-[70vh]"
-                title="Document Preview"
-              />
             </div>
-          )}
-          <DialogFooter>
-            <a
-              href={viewDocumentUrl || "#"}
-              download={viewDocumentName}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-            >
-              Download
-            </a>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      <AlertDialog open={deleteDocumentDialogOpen} onOpenChange={setDeleteDocumentDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Document</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this document? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setDeleteDocumentId(null);
-              setDeleteDocumentPath(null);
-              setDeleteDocumentDialogOpen(false);
-            }}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          </Card>
+        ))}
+      </div>
     </div>
   );
-}
+};
+
+export default ClientCases;

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import NewServe from './pages/NewServe';
-import Clients from './pages/Clients';
+import ClientsPage from './pages/Clients';
 import History from './pages/History';
 import Settings from './pages/Settings';
 import Index from './pages/Index';
@@ -489,12 +489,7 @@ const AnimatedRoutes = () => {
             <NewServe clients={clients} addServe={createServe} />
           } />
           <Route path="/clients" element={
-            <Clients 
-              clients={clients} 
-              addClient={createClient}
-              updateClient={updateClient}
-              deleteClient={deleteClient}
-            />
+            <ClientsPage />
           } />
           <Route path="/history" element={
             <History 

@@ -136,28 +136,56 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           return false;
         };
         
-        // Fill case information
-        tryFillField(['Case Number'], data.caseNumber || '');
-        tryFillField(['Plaintiff/Petitioner'], data.caseName || '');
+        // Fill case information - case number should go in the case number field
+        tryFillField(['Case Number', 'case_number', 'caseNumber'], data.caseNumber || '');
         
-        // Fill defendant/person being served information
-        tryFillField(['Name of Person/Entity Being Served', 'Defendant/Respondent'], data.clientName || '');
+        // Fill plaintiff/petitioner with case name (NOT the person being served)
+        tryFillField(['Plaintiff/Petitioner', 'plaintiff', 'petitioner'], data.caseName || '');
+        
+        // Fill defendant/person being served information - this is the CLIENT NAME
+        tryFillField([
+          'Name of Person/Entity Being Served', 
+          'Defendant/Respondent', 
+          'defendant', 
+          'respondent',
+          'person_being_served',
+          'entity_being_served'
+        ], data.clientName || '');
         
         // Parse address for residence fields
         if (data.clientAddress) {
-          // Try to fill the full address first
-          tryFillField(['Residence address'], data.clientAddress);
+          // Fill the full address in residence address field
+          tryFillField([
+            'Residence address', 
+            'residence_address', 
+            'ADDRESS'
+          ], data.clientAddress);
           
           // Try to split address for city/state field
           const addressParts = data.clientAddress.split(',');
           if (addressParts.length >= 2) {
-            const cityState = addressParts.slice(-2).join(',').trim();
-            tryFillField(['Residence City and state'], cityState);
+            // Get the last part which should be state/zip
+            const lastPart = addressParts[addressParts.length - 1].trim();
+            // Get the second to last part which should be city
+            const cityPart = addressParts[addressParts.length - 2].trim();
+            const cityState = `${cityPart}, ${lastPart}`;
+            
+            tryFillField([
+              'Residence City and state', 
+              'residence_city_state', 
+              'CITY / STATE',
+              'city_state'
+            ], cityState);
           }
         }
 
         // Check residence checkbox since we're serving at residence
-        tryCheckField(['Residence Checkbox']);
+        tryCheckField([
+          'Residence Checkbox', 
+          'residence_checkbox', 
+          'residence_check',
+          'Residence'
+        ]);
         
         // Fill service attempt information
         if (data.serveAttempts && data.serveAttempts.length > 0) {
@@ -168,30 +196,17 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
             return dateA - dateB;
           });
 
-          // Fill up to 5 service attempts (based on available fields)
+          // Fill up to 5 service attempts based on the form structure
           sortedAttempts.slice(0, 5).forEach((attempt, index) => {
             if (attempt.timestamp) {
               const date = new Date(attempt.timestamp);
               const dateStr = date.toLocaleDateString();
               const timeStr = date.toLocaleTimeString();
               
-              // Fill service attempt dates and times
-              if (index === 0) {
-                tryFillField(['Service attempt 1 Date'], dateStr);
-                tryFillField(['Service attempt 1 time'], timeStr);
-              } else if (index === 1) {
-                tryFillField(['Service attempt 2 Date'], dateStr);
-                tryFillField(['Service attempt 2 time'], timeStr);
-              } else if (index === 2) {
-                tryFillField(['Service attempt3 date'], dateStr);
-                tryFillField(['Service attempt 3 time'], timeStr);
-              } else if (index === 3) {
-                tryFillField(['Service attempt number 4'], dateStr);
-                tryFillField(['Service attempt 4 time'], timeStr);
-              } else if (index === 4) {
-                tryFillField(['Service attempt5 Date'], dateStr);
-                tryFillField(['Service attempt 5 time'], timeStr);
-              }
+              // Fill service attempt dates and times in the Service Attempts section
+              const attemptNum = index + 1;
+              tryFillField([`Service attempt ${attemptNum} Date`, `attempt_${attemptNum}_date`], dateStr);
+              tryFillField([`Service attempt ${attemptNum} time`, `attempt_${attemptNum}_time`], timeStr);
             }
           });
 
@@ -199,28 +214,56 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           const successfulAttempt = sortedAttempts.find(attempt => attempt.status === 'completed');
           const mainAttempt = successfulAttempt || sortedAttempts[sortedAttempts.length - 1];
           
+          // Fill the main service date and time (On DATE AT TIME section)
           if (mainAttempt.timestamp) {
             const date = new Date(mainAttempt.timestamp);
-            tryFillField(['Service Date'], date.toLocaleDateString());
-            tryFillField(['Service Time'], date.toLocaleTimeString());
+            tryFillField(['DATE', 'service_date', 'On'], date.toLocaleDateString());
+            tryFillField(['TIME', 'service_time', 'AT'], date.toLocaleTimeString());
           }
 
-          // Check appropriate service method
+          // Determine and check appropriate service method based on attempt status
           if (successfulAttempt) {
-            tryCheckField(['Personal check box']); // Personal service if successful
+            // If we have a successful attempt, check Personal service
+            tryCheckField([
+              'Personal check box', 
+              'Personal', 
+              'personal_service',
+              'personal_checkbox'
+            ]);
           } else {
-            // If no successful service, check appropriate failure reason
+            // If no successful service, determine reason based on notes or default to unable to serve
             const lastAttempt = sortedAttempts[sortedAttempts.length - 1];
-            if (lastAttempt.notes && lastAttempt.notes.toLowerCase().includes('not home')) {
-              tryCheckField(['Unknown at address']);
+            if (lastAttempt.notes) {
+              const notes = lastAttempt.notes.toLowerCase();
+              if (notes.includes('not home') || notes.includes('no answer')) {
+                tryCheckField(['Unknown at Address', 'unknown_at_address']);
+              } else if (notes.includes('moved') || notes.includes('forwarding')) {
+                tryCheckField(['Moved, Left no Forwarding', 'moved_no_forwarding']);
+              } else if (notes.includes('cancel')) {
+                tryCheckField(['Service Cancelled by Litigant', 'service_cancelled']);
+              } else {
+                tryCheckField(['Unable to Serve in Timely Fashion', 'unable_to_serve_timely']);
+              }
             } else {
-              tryCheckField(['Unable to serve in a timely fashion']);
+              tryCheckField(['Unable to Serve in Timely Fashion', 'unable_to_serve_timely']);
             }
           }
+
+          // Check if we should inquire about military service
+          tryCheckField([
+            'Inquired if subject was a member of the U.S. Military and was informed they are not.',
+            'military_inquiry',
+            'us_military_check'
+          ]);
         }
         
         // Fill affidavit date
-        tryFillField(['affidavit_date', 'affidavitDate', 'date_of_affidavit', 'sworn_date'], new Date().toLocaleDateString());
+        tryFillField([
+          'affidavit_date', 
+          'affidavitDate', 
+          'date_of_affidavit', 
+          'sworn_date'
+        ], new Date().toLocaleDateString());
         
         // Flatten the form to make it non-editable
         form.flatten();

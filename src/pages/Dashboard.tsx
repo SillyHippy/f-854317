@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
@@ -24,7 +25,7 @@ import { ClientData } from "@/components/ClientForm";
 import ServeHistory from "@/components/ServeHistory";
 import EditServeDialog from "@/components/EditServeDialog";
 import MemoryMonitor from "@/components/MemoryMonitor";
-import { appwrite } from "@/lib/appwrite";
+import { appwrite, databases } from "@/lib/appwrite";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeServeDataArray, mergeServeAndCaseData } from "@/utils/dataNormalization";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -57,8 +58,8 @@ const Dashboard: React.FC<DashboardProps> = ({ clients }) => {
         const appwriteServes = await appwrite.getServeAttempts(6, 0);
         console.log("Dashboard: Fetched serves from Appwrite:", appwriteServes?.length || 0);
 
-        // Fetch all client cases to merge data
-        const allCases = await appwrite.databases.listDocuments(DB_ID, CASES_COLLECTION_ID);
+        // Fetch all client cases to merge data using the correct databases import
+        const allCases = await databases.listDocuments(DB_ID, CASES_COLLECTION_ID);
         console.log("Dashboard: Fetched all cases from Appwrite:", allCases.documents.length);
         
         if (appwriteServes && appwriteServes.length > 0) {
@@ -88,7 +89,6 @@ const Dashboard: React.FC<DashboardProps> = ({ clients }) => {
               } else if (serve.timestamp instanceof Date) {
                 serveDate = serve.timestamp;
               } else {
-                // Handle any other timestamp format by converting to string first
                 serveDate = new Date(String(serve.timestamp));
               }
               

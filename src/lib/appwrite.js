@@ -1,4 +1,5 @@
 
+
 import { Client, Account, Databases, Storage, Query, ID } from "appwrite";
 import { APPWRITE_CONFIG } from "@/config/backendConfig";
 
@@ -24,6 +25,30 @@ export const CLIENT_DOCUMENTS_COLLECTION_ID = APPWRITE_CONFIG.collections.client
 export const STORAGE_BUCKET_ID = APPWRITE_CONFIG.storageBucket;
 
 const appwrite = {
+  // Export the databases instance so Dashboard can access it
+  databases,
+  storage,
+  DATABASE_ID,
+  CLIENTS_COLLECTION_ID,
+  CASES_COLLECTION_ID,
+  SERVE_ATTEMPTS_COLLECTION_ID,
+  CLIENT_DOCUMENTS_COLLECTION_ID,
+  STORAGE_BUCKET_ID,
+
+  // Setup realtime subscription function
+  setupRealtimeSubscription: (callback) => {
+    try {
+      const unsubscribe = client.subscribe('databases.*', (response) => {
+        console.log('Realtime update received:', response);
+        if (callback) callback(response);
+      });
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error setting up realtime subscription:', error);
+      return () => {}; // Return empty cleanup function
+    }
+  },
+
   // Account Management
   createAccount: async (email, password, name) => {
     try {
@@ -190,7 +215,7 @@ const appwrite = {
         await this.deleteClientCase(caseItem.$id);
       }
 
-      // Delete documents - get them first
+      // Delete documents
       const documents = await databases.listDocuments(
         DATABASE_ID,
         CLIENT_DOCUMENTS_COLLECTION_ID,
@@ -198,7 +223,6 @@ const appwrite = {
       );
       
       for (const doc of documents.documents) {
-        // Delete from storage if file_path exists and is valid
         if (doc.file_path && doc.file_path !== 'unique()') {
           try {
             await storage.deleteFile(STORAGE_BUCKET_ID, doc.file_path);
@@ -207,7 +231,6 @@ const appwrite = {
           }
         }
         
-        // Delete document record
         await databases.deleteDocument(
           DATABASE_ID,
           CLIENT_DOCUMENTS_COLLECTION_ID,
@@ -279,7 +302,6 @@ const appwrite = {
 
   updateCaseStatus: async (clientId, caseNumber, status) => {
     try {
-      // Find the case first
       const cases = await databases.listDocuments(
         DATABASE_ID,
         CASES_COLLECTION_ID,
@@ -306,7 +328,7 @@ const appwrite = {
     }
   },
 
-  // Serve Attempt Management
+  // Serve Attempt Management - Updated to use correct collection ID
   createServeAttempt: async (serveData) => {
     try {
       const response = await databases.createDocument(
@@ -337,11 +359,14 @@ const appwrite = {
     }
   },
 
-  getServeAttempts: async () => {
+  // Updated getServeAttempts to handle limit and offset parameters
+  getServeAttempts: async (limit = 100, offset = 0) => {
     try {
+      const queries = [Query.limit(limit), Query.offset(offset), Query.orderDesc('created_at')];
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        SERVE_ATTEMPTS_COLLECTION_ID
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        queries
       );
       return documents;
     } catch (error) {
@@ -478,10 +503,7 @@ const appwrite = {
 
   deleteClientDocument: async (documentId, filePath) => {
     try {
-      // Delete file from storage
       await storage.deleteFile(STORAGE_BUCKET_ID, filePath);
-
-      // Delete document from database
       await databases.deleteDocument(
         DATABASE_ID,
         CLIENT_DOCUMENTS_COLLECTION_ID,

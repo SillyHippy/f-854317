@@ -756,10 +756,12 @@ export const appwrite = {
 
   async updateCase(caseId, caseData) {
     try {
+      console.log('Updating case with ID:', caseId, 'and data:', caseData);
+      
       const response = await databases.updateDocument(
         DATABASE_ID,
         CASES_COLLECTION_ID,
-        caseId, // This was missing - the documentId parameter
+        caseId,
         {
           case_number: caseData.case_number,
           case_name: caseData.case_name, // This field stores person_entity_being_served
@@ -773,6 +775,8 @@ export const appwrite = {
           updated_at: new Date().toISOString()
         }
       );
+      
+      console.log('Case update successful:', response);
       return response;
     } catch (error) {
       console.error('Error updating case:', error);

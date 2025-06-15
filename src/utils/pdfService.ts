@@ -6,6 +6,7 @@ import { ClientData } from '@/components/ClientForm';
 export interface AffidavitData {
   // Basic case info
   caseName?: string;
+  caseNumber?: string;
   courtName?: string;
   documentsToServe?: string;
   

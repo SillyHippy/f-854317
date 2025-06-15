@@ -299,6 +299,7 @@ export const appwrite = {
       throw error;
     }
   },
+
   async getServeAttempts(limit = 50, offset = 0) {
     try {
       // Add pagination to prevent memory overload
@@ -331,6 +332,20 @@ export const appwrite = {
     } catch (error) {
       console.error('Error fetching serve attempts:', error);
       return [];
+    }
+  },
+
+  async getTotalServeAttemptsCount() {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID, 
+        SERVE_ATTEMPTS_COLLECTION_ID,
+        [Query.limit(1)]
+      );
+      return response.total || 0;
+    } catch (error) {
+      console.error('Error getting total serve attempts count:', error);
+      return 0;
     }
   },
 
@@ -729,7 +744,7 @@ export const appwrite = {
     }
   },
 
-  async createCase(caseData) {
+  async createClientCase(caseData) {
     try {
       const caseId = ID.unique();
       const now = new Date().toISOString();
@@ -741,21 +756,27 @@ export const appwrite = {
           client_id: caseData.client_id,
           case_number: caseData.case_number,
           case_name: caseData.case_name,
-          court_name: caseData.court_name,
-          plaintiff_petitioner: caseData.plaintiff_petitioner,
-          defendant_respondent: caseData.defendant_respondent,
-          home_address: caseData.home_address,
-          work_address: caseData.work_address,
-          status: caseData.status || 'Open',
+          court_name: caseData.court_name || "",
+          plaintiff_petitioner: caseData.plaintiff_petitioner || "",
+          defendant_respondent: caseData.defendant_respondent || "",
+          home_address: caseData.home_address || "",
+          work_address: caseData.work_address || "",
+          notes: caseData.notes || "",
+          status: caseData.status || 'active',
           created_at: now,
           updated_at: now
         }
       );
       return response;
     } catch (error) {
-      console.error('Error creating case:', error);
+      console.error('Error creating client case:', error);
       throw error;
     }
+  },
+
+  async createCase(caseData) {
+    // Alias for createClientCase for backward compatibility
+    return this.createClientCase(caseData);
   },
 
   async updateCase(caseId, caseData) {
@@ -774,6 +795,7 @@ export const appwrite = {
           defendant_respondent: caseData.defendant_respondent,
           home_address: caseData.home_address,
           work_address: caseData.work_address,
+          notes: caseData.notes,
           status: caseData.status,
           updated_at: new Date().toISOString()
         }

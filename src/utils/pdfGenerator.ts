@@ -207,7 +207,28 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
         })
         .map((attempt, index) => {
           const attemptLabel = sortedAttempts.length > 1 ? `Attempt ${index + 1}: ` : '';
-          const notes = attempt.notes || attempt.description || '';
+          let notes = attempt.notes || attempt.description || '';
+          
+          // Add physical description from individual fields if available
+          const physicalParts: string[] = [];
+          if (attempt.age) physicalParts.push(`Age: ${attempt.age}`);
+          if (attempt.sex) physicalParts.push(`Sex: ${attempt.sex}`);
+          if (attempt.ethnicity) physicalParts.push(`Ethnicity: ${attempt.ethnicity}`);
+          if (attempt.height_feet && attempt.height_inches) {
+            physicalParts.push(`Height: ${attempt.height_feet}'${attempt.height_inches}"`);
+          } else if (attempt.height_feet) {
+            physicalParts.push(`Height: ${attempt.height_feet}'`);
+          }
+          if (attempt.weight) physicalParts.push(`Weight: ${attempt.weight}`);
+          if (attempt.hair) physicalParts.push(`Hair: ${attempt.hair}`);
+          if (attempt.beard) physicalParts.push(`Beard: ${attempt.beard}`);
+          if (attempt.glasses) physicalParts.push(`Glasses: ${attempt.glasses}`);
+          
+          if (physicalParts.length > 0) {
+            const physicalDesc = `Physical Description: ${physicalParts.join(', ')}`;
+            notes = notes ? `${notes}\n\n${physicalDesc}` : physicalDesc;
+          }
+          
           return `${attemptLabel}${notes}`;
         })
         .join('\n\n');

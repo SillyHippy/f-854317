@@ -137,7 +137,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         for (const client of clients) {
           const clientCases = await appwrite.getClientCases(client.id);
           activeCases.push(
-            ...clientCases.filter((caseItem) => caseItem.status !== "Closed").map((caseItem) => ({
+            ...clientCases.filter((caseItem) => caseItem.status !== "Closed" && caseItem.status !== "closed").map((caseItem) => ({
               caseNumber: caseItem.case_number,
               caseName: caseItem.case_name,
               homeAddress: caseItem.home_address,
@@ -172,7 +172,7 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         try {
           const clientCases = await appwrite.getClientCases(selectedClient.id);
           const activeCases = clientCases
-            .filter((caseItem) => caseItem.status !== "Closed")
+            .filter((caseItem) => caseItem.status !== "Closed" && caseItem.status !== "closed")
             .map((caseItem) => ({
               caseNumber: caseItem.case_number,
               caseName: caseItem.case_name,
@@ -381,6 +381,16 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         status: data.status,
         attemptNumber: caseAttemptCount + 1,
         physicalDescription,
+        // Individual physical description fields for Appwrite
+        age: physicalDescription?.age,
+        sex: physicalDescription?.sex,
+        ethnicity: physicalDescription?.ethnicity,
+        height_feet: physicalDescription?.height_feet,
+        height_inches: physicalDescription?.height_inches,
+        weight: physicalDescription?.weight,
+        hair: physicalDescription?.hair,
+        beard: physicalDescription?.beard,
+        glasses: physicalDescription?.glasses,
       };
 
       console.log("Submitting serve attempt data to Appwrite:", serveData);

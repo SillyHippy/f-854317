@@ -28,6 +28,17 @@ export interface ServeAttemptData {
   personEntityBeingServed?: string;
   physicalDescription?: any; // PhysicalDescriptionData type
 
+  // Physical description fields from Appwrite collection
+  age?: string;
+  sex?: string;
+  ethnicity?: string;
+  height_feet?: string;
+  height_inches?: string;
+  weight?: string;
+  hair?: string;
+  beard?: string;
+  glasses?: string;
+
   // Fields from client_cases that might be merged
   court_name?: string;
   plaintiff_petitioner?: string;

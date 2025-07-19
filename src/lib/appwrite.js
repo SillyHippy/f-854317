@@ -448,6 +448,20 @@ export const appwrite = {
         glasses: serveData.glasses || "",
       };
 
+      console.log("=== APPWRITE DEBUG: Payload being sent ===");
+      console.log("Full payload object:", payload);
+      console.log("Physical description fields in payload:");
+      console.log("  age:", payload.age);
+      console.log("  sex:", payload.sex);
+      console.log("  ethnicity:", payload.ethnicity);
+      console.log("  height_feet:", payload.height_feet);
+      console.log("  height_inches:", payload.height_inches);
+      console.log("  weight:", payload.weight);
+      console.log("  hair:", payload.hair);
+      console.log("  beard:", payload.beard);
+      console.log("  glasses:", payload.glasses);
+      console.log("=== END APPWRITE DEBUG ===");
+
       const response = await databases.createDocument(
         DATABASE_ID,
         SERVE_ATTEMPTS_COLLECTION_ID,

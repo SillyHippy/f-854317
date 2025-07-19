@@ -393,6 +393,20 @@ const ServeAttempt: React.FC<ServeAttemptProps> = ({
         glasses: physicalDescription?.glasses,
       };
 
+      console.log("=== DEBUG: Physical Description Data ===");
+      console.log("physicalDescription object:", physicalDescription);
+      console.log("Individual physical fields being sent:");
+      console.log("age:", physicalDescription?.age);
+      console.log("sex:", physicalDescription?.sex);
+      console.log("ethnicity:", physicalDescription?.ethnicity);
+      console.log("height_feet:", physicalDescription?.height_feet);
+      console.log("height_inches:", physicalDescription?.height_inches);
+      console.log("weight:", physicalDescription?.weight);
+      console.log("hair:", physicalDescription?.hair);
+      console.log("beard:", physicalDescription?.beard);
+      console.log("glasses:", physicalDescription?.glasses);
+      console.log("=== END DEBUG ===");
+
       console.log("Submitting serve attempt data to Appwrite:", serveData);
 
       // Save to the database

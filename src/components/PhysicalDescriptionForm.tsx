@@ -79,6 +79,7 @@ const PhysicalDescriptionForm: React.FC<PhysicalDescriptionFormProps> = ({
   }, [initialData, form]);
 
   const handleSubmit = (data: PhysicalDescriptionData) => {
+    console.log("Physical description being saved:", data);
     onSave(data);
     setIsOpen(false);
   };
@@ -111,7 +112,11 @@ const PhysicalDescriptionForm: React.FC<PhysicalDescriptionFormProps> = ({
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON') {
+              e.preventDefault();
+            }
+          }} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}

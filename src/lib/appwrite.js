@@ -354,6 +354,16 @@ export const appwrite = {
         imageData: doc.image_data || null,
         address: doc.address || "",
         serviceAddress: doc.service_address || "",
+        // Physical description fields
+        age: doc.age || "",
+        sex: doc.sex || "",
+        ethnicity: doc.ethnicity || "",
+        height_feet: doc.height_feet || "",
+        height_inches: doc.height_inches || "",
+        weight: doc.weight || "",
+        hair: doc.hair || "",
+        beard: doc.beard || "",
+        glasses: doc.glasses || "",
       })).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     } catch (error) {
       console.error(`Error fetching serve attempts for client ${clientId}:`, error);
@@ -426,6 +436,16 @@ export const appwrite = {
                     new Date(serveData.timestamp).toISOString()) : 
                    new Date().toISOString(),
         attempt_number: serveData.attemptNumber || 1,
+        // Physical description fields
+        age: serveData.age || "",
+        sex: serveData.sex || "",
+        ethnicity: serveData.ethnicity || "",
+        height_feet: serveData.height_feet || "",
+        height_inches: serveData.height_inches || "",
+        weight: serveData.weight || "",
+        hair: serveData.hair || "",
+        beard: serveData.beard || "",
+        glasses: serveData.glasses || "",
       };
 
       const response = await databases.createDocument(

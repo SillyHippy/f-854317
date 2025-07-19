@@ -213,20 +213,33 @@ export const generateAffidavitPDF = async (data: AffidavitData): Promise<void> =
           const physicalParts: string[] = [];
           if (attempt.age) physicalParts.push(`Age: ${attempt.age}`);
           if (attempt.sex) physicalParts.push(`Sex: ${attempt.sex}`);
-          if (attempt.ethnicity) physicalParts.push(`Ethnicity: ${attempt.ethnicity}`);
+          if (attempt.ethnicity) physicalParts.push(`Race: ${attempt.ethnicity}`);
           if (attempt.height_feet && attempt.height_inches) {
             physicalParts.push(`Height: ${attempt.height_feet}'${attempt.height_inches}"`);
           } else if (attempt.height_feet) {
             physicalParts.push(`Height: ${attempt.height_feet}'`);
           }
           if (attempt.weight) physicalParts.push(`Weight: ${attempt.weight}`);
-          if (attempt.hair) physicalParts.push(`Hair: ${attempt.hair}`);
+          if (attempt.hair) physicalParts.push(`Hair Color: ${attempt.hair}`);
           if (attempt.beard) physicalParts.push(`Beard: ${attempt.beard}`);
           if (attempt.glasses) physicalParts.push(`Glasses: ${attempt.glasses}`);
           
           if (physicalParts.length > 0) {
             const physicalDesc = `Physical Description: ${physicalParts.join(', ')}`;
             notes = notes ? `${notes}\n\n${physicalDesc}` : physicalDesc;
+          }
+          
+          // Also try to fill individual PDF fields directly from the database fields
+          if (index === 0) { // Only fill from the most recent attempt
+            fillTextField('Age', attempt.age);
+            fillTextField('Sex', attempt.sex);
+            fillTextField('Race', attempt.ethnicity);
+            fillTextField('Height', attempt.height_feet && attempt.height_inches ? 
+              `${attempt.height_feet}'${attempt.height_inches}"` : attempt.height_feet || '');
+            fillTextField('Weight', attempt.weight);
+            fillTextField('Hair Color', attempt.hair);
+            fillTextField('Beard', attempt.beard);
+            fillTextField('Glasses', attempt.glasses);
           }
           
           return `${attemptLabel}${notes}`;
